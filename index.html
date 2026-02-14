@@ -28,11 +28,14 @@
         .header h1 { font-size: 1.4rem; }
         .header p { font-size: 0.75rem; opacity: 0.85; margin-top: 2px; }
 
-        .camera-box {
+        .camera-container {
             position: relative;
             width: 90%;
             max-width: 380px;
             margin: 12px auto;
+        }
+
+        .camera-box {
             border-radius: 16px;
             overflow: hidden;
             border: 3px solid #667eea;
@@ -53,6 +56,28 @@
             width: 100%;
             display: block;
             transform: scaleX(-1);
+        }
+
+        .btn-camera-switch {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(0,0,0,0.5);
+            color: #fff;
+            font-size: 1.2rem;
+            cursor: pointer;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-camera-switch:active {
+            background: rgba(100,100,255,0.7);
         }
 
         #canvas { display: none; }
@@ -235,8 +260,11 @@
 
     <div id="statusBar" class="status loading">جاري تحميل النموذج...</div>
 
-    <div class="camera-box" id="cameraBox">
-        <video id="video" autoplay playsinline></video>
+    <div class="camera-container">
+        <button class="btn-camera-switch" id="switchBtn" onclick="switchCamera()">🔄</button>
+        <div class="camera-box" id="cameraBox">
+            <video id="video" autoplay playsinline></video>
+        </div>
     </div>
 
     <canvas id="canvas"></canvas>
@@ -272,7 +300,8 @@
         1. اضغط "تشغيل التعرف"<br>
         2. اعمل اشارة الحرف بيدك امام الكاميرا<br>
         3. لما الاطار يصير اخضر - الحرف يتحفظ تلقائي<br>
-        4. غيّر الاشارة للحرف التالي
+        4. غيّر الاشارة للحرف التالي<br>
+        🔄 اضغط الزر لتبديل الكاميرا
     </div>
 
     <script>
@@ -287,11 +316,12 @@
         let currentLetter = '';
         let currentArabic = '';
         let currentConfidence = 0;
+        let useFrontCamera = true; // الكاميرا الأمامية افتراضياً
 
         // Auto-capture variables
         let stableLetter = '';
         let stableCount = 0;
-        const STABLE_THRESHOLD = 3; // 3 consecutive same predictions = 1.5 seconds
+        const STABLE_THRESHOLD = 3;
         let lastSavedLetter = '';
 
         // English to Arabic mapping
@@ -331,16 +361,25 @@
         };
 
         async function startCamera() {
+            // Stop existing stream
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
+
+            const facingMode = useFrontCamera ? 'user' : 'environment';
+
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment', width: 224, height: 224 }
+                    video: { facingMode: facingMode, width: 320, height: 320 }
                 });
                 video.srcObject = stream;
                 await video.play();
             } catch (err) {
+                // If preferred camera fails, try the other one
                 try {
+                    const fallback = useFrontCamera ? 'environment' : 'user';
                     const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: 'user', width: 224, height: 224 }
+                        video: { facingMode: fallback, width: 320, height: 320 }
                     });
                     video.srcObject = stream;
                     await video.play();
@@ -348,6 +387,11 @@
                     setStatus('خطأ في تشغيل الكاميرا', 'error');
                 }
             }
+        }
+
+        async function switchCamera() {
+            useFrontCamera = !useFrontCamera;
+            await startCamera();
         }
 
         function fixModelJson(json) {
@@ -408,7 +452,7 @@
                     }
                 }));
 
-                setStatus('النموذج جاهز!', 'ready');
+                setStatus('النموذج جاهز! 📷 الكاميرا الأمامية', 'ready');
             } catch (err) {
                 try {
                     setStatus('جاري المحاولة مرة اخرى...', 'loading');
@@ -479,7 +523,7 @@
                         }
                     }
 
-                    setStatus('النموذج جاهز!', 'ready');
+                    setStatus('النموذج جاهز! 📷 الكاميرا الأمامية', 'ready');
                 } catch (err2) {
                     setStatus('خطأ في تحميل النموذج: ' + err2.message, 'error');
                     console.error(err2);
@@ -514,7 +558,6 @@
             document.getElementById('resultEnglish').textContent = engLetter;
             document.getElementById('resultConfidence').textContent = confidence + '%';
 
-            // Update progress bar
             const progressFill = document.getElementById('progressFill');
             const box = document.getElementById('cameraBox');
 
@@ -522,20 +565,17 @@
                 box.classList.add('detecting');
                 box.classList.remove('captured');
 
-                // Check stability for auto-capture
                 if (engLetter === stableLetter) {
                     stableCount++;
                     progressFill.style.width = Math.min((stableCount / STABLE_THRESHOLD) * 100, 100) + '%';
 
                     if (stableCount >= STABLE_THRESHOLD && engLetter !== lastSavedLetter) {
-                        // Auto-save the letter
                         sentence += arbLetter;
                         document.getElementById('sentence').textContent = sentence;
                         lastSavedLetter = engLetter;
                         stableCount = 0;
                         progressFill.style.width = '0%';
 
-                        // Visual feedback
                         box.classList.remove('detecting');
                         box.classList.add('captured');
                         document.getElementById('resultBox').classList.add('auto-saved');
