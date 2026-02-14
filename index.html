@@ -36,11 +36,17 @@
             border-radius: 16px;
             overflow: hidden;
             border: 3px solid #667eea;
+            transition: border-color 0.3s, box-shadow 0.3s;
         }
 
         .camera-box.detecting {
             border-color: #44cc44;
             box-shadow: 0 0 20px rgba(68, 204, 68, 0.3);
+        }
+
+        .camera-box.captured {
+            border-color: #ffaa00;
+            box-shadow: 0 0 25px rgba(255, 170, 0, 0.5);
         }
 
         #video {
@@ -55,27 +61,52 @@
             width: 90%;
             max-width: 380px;
             margin: 10px auto;
-            padding: 20px;
+            padding: 15px;
             background: #1a1a35;
             border-radius: 16px;
             text-align: center;
             border: 2px solid #333;
         }
 
-        .result-letter {
+        .result-letters {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .result-arabic {
             font-size: 4rem;
             font-weight: bold;
             color: #667eea;
-            min-height: 80px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        }
+
+        .result-english {
+            font-size: 1.2rem;
+            color: #888;
         }
 
         .result-confidence {
             font-size: 0.9rem;
             color: #aaa;
             margin-top: 5px;
+        }
+
+        .progress-bar {
+            width: 80%;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            margin: 8px auto 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #667eea, #44cc44);
+            border-radius: 3px;
+            transition: width 0.3s;
         }
 
         .sentence-box {
@@ -87,20 +118,20 @@
             border-radius: 12px;
             text-align: center;
             border: 2px solid #333;
-            min-height: 50px;
+            min-height: 55px;
         }
 
         .sentence-text {
-            font-size: 1.5rem;
+            font-size: 2rem;
             color: #e0e0ff;
-            letter-spacing: 4px;
+            letter-spacing: 6px;
             direction: rtl;
         }
 
         .buttons {
             display: flex;
             gap: 8px;
-            margin: 10px auto;
+            margin: 8px auto;
             width: 90%;
             max-width: 380px;
         }
@@ -127,8 +158,8 @@
             background: linear-gradient(135deg, #667eea, #764ba2);
         }
 
-        .btn-add {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+        .btn-space {
+            background: linear-gradient(135deg, #ff8800, #cc6600);
             color: #fff;
         }
 
@@ -183,6 +214,16 @@
             text-align: center;
             line-height: 1.6;
         }
+
+        .auto-saved {
+            animation: flash 0.5s;
+        }
+
+        @keyframes flash {
+            0% { background: #1a1a35; }
+            50% { background: #2a4a2a; }
+            100% { background: #1a1a35; }
+        }
     </style>
 </head>
 <body>
@@ -202,9 +243,15 @@
 
     <div id="modeInfo" class="mode-info paused">التعرف التلقائي متوقف</div>
 
-    <div class="result">
-        <div id="resultLetter" class="result-letter">-</div>
-        <div id="resultConfidence" class="result-confidence">فعل التعرف التلقائي وابدأ بالاشارة</div>
+    <div class="result" id="resultBox">
+        <div class="result-letters">
+            <div id="resultArabic" class="result-arabic">-</div>
+            <div id="resultEnglish" class="result-english"></div>
+        </div>
+        <div id="resultConfidence" class="result-confidence">فعّل التعرف التلقائي وابدأ بالاشارة</div>
+        <div class="progress-bar">
+            <div id="progressFill" class="progress-fill"></div>
+        </div>
     </div>
 
     <div class="sentence-box">
@@ -213,7 +260,7 @@
 
     <div class="buttons">
         <button class="btn btn-auto paused" id="autoBtn" onclick="toggleAuto()">تشغيل التعرف</button>
-        <button class="btn btn-add" id="addBtn" onclick="addLetter()">اضافة الحرف</button>
+        <button class="btn btn-space" onclick="addSpace()">مسافة</button>
     </div>
 
     <div class="buttons">
@@ -222,9 +269,10 @@
     </div>
 
     <div class="instructions">
-        1. اضغط تشغيل التعرف لبدء التعرف التلقائي<br>
+        1. اضغط "تشغيل التعرف"<br>
         2. اعمل اشارة الحرف بيدك امام الكاميرا<br>
-        3. لما يظهر الحرف الصحيح اضغط اضافة الحرف<br>
+        3. لما الاطار يصير اخضر - الحرف يتحفظ تلقائي<br>
+        4. غيّر الاشارة للحرف التالي
     </div>
 
     <script>
@@ -237,7 +285,50 @@
         let autoMode = false;
         let autoInterval = null;
         let currentLetter = '';
+        let currentArabic = '';
         let currentConfidence = 0;
+
+        // Auto-capture variables
+        let stableLetter = '';
+        let stableCount = 0;
+        const STABLE_THRESHOLD = 3; // 3 consecutive same predictions = 1.5 seconds
+        let lastSavedLetter = '';
+
+        // English to Arabic mapping
+        const arabicMap = {
+            'ain': 'ع',
+            'al': 'ال',
+            'aleff': 'ا',
+            'bb': 'ب',
+            'dal': 'د',
+            'dha': 'ذ',
+            'dhad': 'ض',
+            'fa': 'ف',
+            'gaaf': 'ق',
+            'ghain': 'غ',
+            'ha': 'ح',
+            'haa': 'ه',
+            'jeem': 'ج',
+            'kaaf': 'ك',
+            'khaa': 'خ',
+            'la': 'لا',
+            'laam': 'ل',
+            'meem': 'م',
+            'nun': 'ن',
+            'ra': 'ر',
+            'saad': 'ص',
+            'seen': 'س',
+            'sheen': 'ش',
+            'ta': 'ت',
+            'taa': 'ط',
+            'thaa': 'ث',
+            'thal': 'ظ',
+            'toot': 'ة',
+            'waw': 'و',
+            'ya': 'ي',
+            'yaa': 'ى',
+            'zay': 'ز'
+        };
 
         async function startCamera() {
             try {
@@ -259,17 +350,12 @@
             }
         }
 
-        // Fix Keras 3 model.json to work with TensorFlow.js
         function fixModelJson(json) {
             const str = JSON.stringify(json);
-            // Replace batch_shape with batch_input_shape
             let fixed = str.replace(/"batch_shape"/g, '"batch_input_shape"');
-            // Remove DTypePolicy objects and replace with simple string
             fixed = fixed.replace(/"dtype"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"[^}]*\}/g, '"dtype":"$1"');
-            // Remove module/registered_name from initializers
             fixed = fixed.replace(/"module"\s*:\s*"[^"]*"\s*,\s*/g, '');
             fixed = fixed.replace(/,\s*"registered_name"\s*:\s*null/g, '');
-            // Fix inbound_nodes format from Keras 3 to Keras 2
             let obj = JSON.parse(fixed);
             if (obj.modelTopology && obj.modelTopology.model_config) {
                 const layers = obj.modelTopology.model_config.config.layers;
@@ -278,7 +364,6 @@
                         const newNodes = [];
                         for (let node of layer.inbound_nodes) {
                             if (node.args) {
-                                // Keras 3 format - convert to Keras 2
                                 const args = Array.isArray(node.args) ? node.args : [node.args];
                                 const connections = [];
                                 for (let arg of args) {
@@ -287,9 +372,7 @@
                                         connections.push([h[0], h[1], h[2], {}]);
                                     }
                                 }
-                                if (connections.length > 0) {
-                                    newNodes.push(connections);
-                                }
+                                if (connections.length > 0) newNodes.push(connections);
                             } else {
                                 newNodes.push(node);
                             }
@@ -308,26 +391,18 @@
                 const classResponse = await fetch('class_names.json');
                 classNames = await classResponse.json();
 
-                // Load and fix model.json
                 const modelResponse = await fetch('model.json');
                 const modelJson = await modelResponse.json();
                 const fixedJson = fixModelJson(modelJson);
 
-                // Create a blob URL for the fixed model
                 const fixedBlob = new Blob([JSON.stringify(fixedJson)], {type: 'application/json'});
                 const fixedUrl = URL.createObjectURL(fixedBlob);
 
-                // Custom IOHandler to load from blob + original shard files
-                const modelUrl = new URL('model.json', window.location.href).href;
-                const baseUrl = modelUrl.substring(0, modelUrl.lastIndexOf('/') + 1);
+                const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
 
                 model = await tf.loadLayersModel(tf.io.browserHTTPRequest(fixedUrl, {
                     fetchFunc: (url, init) => {
-                        // If requesting the model.json, return our fixed version
-                        if (url === fixedUrl || url.endsWith('model.json')) {
-                            return fetch(fixedUrl);
-                        }
-                        // For weight files, fetch from original location
+                        if (url === fixedUrl || url.endsWith('model.json')) return fetch(fixedUrl);
                         const filename = url.split('/').pop();
                         return fetch(baseUrl + filename);
                     }
@@ -335,16 +410,14 @@
 
                 setStatus('النموذج جاهز!', 'ready');
             } catch (err) {
-                // Try alternative loading method
                 try {
                     setStatus('جاري المحاولة مرة اخرى...', 'loading');
-                    
-                    const classResponse = await fetch('class_names.json');
+
                     if (classNames.length === 0) {
-                        classNames = await classResponse.json();
+                        const cr = await fetch('class_names.json');
+                        classNames = await cr.json();
                     }
 
-                    // Build model manually
                     model = tf.sequential();
                     model.add(tf.layers.conv2d({inputShape: [64, 64, 3], filters: 32, kernelSize: 3, activation: 'relu'}));
                     model.add(tf.layers.maxPooling2d({poolSize: 2}));
@@ -357,22 +430,18 @@
                     model.add(tf.layers.dropout({rate: 0.5}));
                     model.add(tf.layers.dense({units: 32, activation: 'softmax'}));
 
-                    // Load weights
                     const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
                     const response = await fetch(baseUrl + 'model.json');
                     const modelJson = await response.json();
                     const weightPaths = modelJson.weightsManifest[0].paths;
                     const weightSpecs = modelJson.weightsManifest[0].weights;
 
-                    // Fetch all weight files
                     const buffers = [];
                     for (const path of weightPaths) {
                         const resp = await fetch(baseUrl + path);
-                        const buf = await resp.arrayBuffer();
-                        buffers.push(buf);
+                        buffers.push(await resp.arrayBuffer());
                     }
 
-                    // Combine buffers
                     const totalLength = buffers.reduce((acc, buf) => acc + buf.byteLength, 0);
                     const combined = new Uint8Array(totalLength);
                     let offset = 0;
@@ -381,29 +450,26 @@
                         offset += buf.byteLength;
                     }
 
-                    // Create tensors from weight specs
                     const weightData = combined.buffer;
                     let byteOffset = 0;
                     const namedTensors = {};
                     for (const spec of weightSpecs) {
                         const size = spec.shape.reduce((a, b) => a * b, 1);
-                        const byteSize = size * 4; // float32
                         const values = new Float32Array(weightData, byteOffset, size);
                         namedTensors[spec.name] = tf.tensor(Array.from(values), spec.shape);
-                        byteOffset += byteSize;
+                        byteOffset += size * 4;
                     }
 
-                    // Map weights to layers
                     const layerWeights = [
                         [namedTensors['sequential/conv2d/kernel'], namedTensors['sequential/conv2d/bias']],
-                        [], // maxpool
+                        [],
                         [namedTensors['sequential/conv2d_1/kernel'], namedTensors['sequential/conv2d_1/bias']],
-                        [], // maxpool
+                        [],
                         [namedTensors['sequential/conv2d_2/kernel'], namedTensors['sequential/conv2d_2/bias']],
-                        [], // maxpool
-                        [], // flatten
+                        [],
+                        [],
                         [namedTensors['sequential/dense/kernel'], namedTensors['sequential/dense/bias']],
-                        [], // dropout
+                        [],
                         [namedTensors['sequential/dense_1/kernel'], namedTensors['sequential/dense_1/bias']]
                     ];
 
@@ -437,19 +503,59 @@
             const probabilities = await prediction.data();
             const maxIndex = probabilities.indexOf(Math.max(...probabilities));
             const confidence = (probabilities[maxIndex] * 100).toFixed(1);
-            const letter = classNames[maxIndex];
+            const engLetter = classNames[maxIndex];
+            const arbLetter = arabicMap[engLetter] || engLetter;
 
-            currentLetter = letter;
+            currentLetter = engLetter;
+            currentArabic = arbLetter;
             currentConfidence = probabilities[maxIndex];
 
-            document.getElementById('resultLetter').textContent = letter;
+            document.getElementById('resultArabic').textContent = arbLetter;
+            document.getElementById('resultEnglish').textContent = engLetter;
             document.getElementById('resultConfidence').textContent = confidence + '%';
 
+            // Update progress bar
+            const progressFill = document.getElementById('progressFill');
             const box = document.getElementById('cameraBox');
+
             if (currentConfidence > 0.7) {
                 box.classList.add('detecting');
+                box.classList.remove('captured');
+
+                // Check stability for auto-capture
+                if (engLetter === stableLetter) {
+                    stableCount++;
+                    progressFill.style.width = Math.min((stableCount / STABLE_THRESHOLD) * 100, 100) + '%';
+
+                    if (stableCount >= STABLE_THRESHOLD && engLetter !== lastSavedLetter) {
+                        // Auto-save the letter
+                        sentence += arbLetter;
+                        document.getElementById('sentence').textContent = sentence;
+                        lastSavedLetter = engLetter;
+                        stableCount = 0;
+                        progressFill.style.width = '0%';
+
+                        // Visual feedback
+                        box.classList.remove('detecting');
+                        box.classList.add('captured');
+                        document.getElementById('resultBox').classList.add('auto-saved');
+                        setTimeout(() => {
+                            box.classList.remove('captured');
+                            document.getElementById('resultBox').classList.remove('auto-saved');
+                        }, 500);
+                    }
+                } else {
+                    stableLetter = engLetter;
+                    stableCount = 1;
+                    lastSavedLetter = '';
+                    progressFill.style.width = '0%';
+                }
             } else {
                 box.classList.remove('detecting');
+                box.classList.remove('captured');
+                stableCount = 0;
+                lastSavedLetter = '';
+                progressFill.style.width = '0%';
             }
 
             tensor.dispose();
@@ -464,8 +570,10 @@
             if (autoMode) {
                 btn.textContent = 'ايقاف التعرف';
                 btn.classList.remove('paused');
-                info.textContent = 'التعرف التلقائي شغال...';
+                info.textContent = 'التعرف التلقائي شغّال - الحرف يتحفظ لما الاطار يصير اخضر';
                 info.classList.remove('paused');
+                stableCount = 0;
+                lastSavedLetter = '';
                 autoInterval = setInterval(predict, 500);
             } else {
                 btn.textContent = 'تشغيل التعرف';
@@ -473,27 +581,31 @@
                 info.textContent = 'التعرف التلقائي متوقف';
                 info.classList.add('paused');
                 document.getElementById('cameraBox').classList.remove('detecting');
+                document.getElementById('cameraBox').classList.remove('captured');
+                document.getElementById('progressFill').style.width = '0%';
                 clearInterval(autoInterval);
             }
         }
 
-        function addLetter() {
-            if (currentLetter && currentConfidence > 0.3) {
-                sentence += currentLetter;
-                document.getElementById('sentence').textContent = sentence;
-            }
+        function addSpace() {
+            sentence += ' ';
+            document.getElementById('sentence').textContent = sentence;
         }
 
         function clearSentence() {
             sentence = '';
             document.getElementById('sentence').textContent = '';
-            document.getElementById('resultLetter').textContent = '-';
+            document.getElementById('resultArabic').textContent = '-';
+            document.getElementById('resultEnglish').textContent = '';
             document.getElementById('resultConfidence').textContent = '';
+            document.getElementById('progressFill').style.width = '0%';
+            lastSavedLetter = '';
         }
 
         function deleteLast() {
             sentence = sentence.slice(0, -1);
             document.getElementById('sentence').textContent = sentence;
+            lastSavedLetter = '';
         }
 
         function setStatus(text, type) {
