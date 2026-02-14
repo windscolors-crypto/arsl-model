@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SignVerse - لغة الإشارة العربية</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            background: #0f0f23;
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header {
+            text-align: center;
+            padding: 12px;
+            width: 100%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+
+        .header h1 { font-size: 1.4rem; }
+        .header p { font-size: 0.75rem; opacity: 0.85; margin-top: 2px; }
+
+        .camera-box {
+            position: relative;
+            width: 90%;
+            max-width: 380px;
+            margin: 12px auto;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 3px solid #667eea;
+        }
+
+        #video {
+            width: 100%;
+            display: block;
+            transform: scaleX(-1);
+        }
+
+        #canvas { display: none; }
+
+        .result {
+            width: 90%;
+            max-width: 380px;
+            margin: 10px auto;
+            padding: 20px;
+            background: #1a1a35;
+            border-radius: 16px;
+            text-align: center;
+            border: 2px solid #333;
+        }
+
+        .result-letter {
+            font-size: 4rem;
+            font-weight: bold;
+            color: #667eea;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .result-confidence {
+            font-size: 0.9rem;
+            color: #aaa;
+            margin-top: 5px;
+        }
+
+        .sentence-box {
+            width: 90%;
+            max-width: 380px;
+            margin: 8px auto;
+            padding: 15px;
+            background: #1a1a35;
+            border-radius: 12px;
+            text-align: center;
+            border: 2px solid #333;
+            min-height: 50px;
+        }
+
+        .sentence-text {
+            font-size: 1.5rem;
+            color: #e0e0ff;
+            letter-spacing: 4px;
+            direction: rtl;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin: 10px auto;
+            width: 90%;
+            max-width: 380px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn:active { transform: scale(0.95); }
+
+        .btn-capture {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff;
+        }
+
+        .btn-clear {
+            background: #333;
+            color: #fff;
+        }
+
+        .btn-delete {
+            background: #cc3333;
+            color: #fff;
+            flex: 0.5;
+        }
+
+        .status {
+            text-align: center;
+            padding: 8px;
+            font-size: 0.85rem;
+            color: #aaa;
+        }
+
+        .status.loading { color: #ffaa00; }
+        .status.ready { color: #44cc44; }
+        .status.error { color: #cc4444; }
+
+        .instructions {
+            width: 90%;
+            max-width: 380px;
+            margin: 8px auto;
+            padding: 12px;
+            background: #12122a;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            color: #888;
+            text-align: center;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>SignVerse</h1>
+        <p>التعرف على حروف لغة الإشارة العربية</p>
+    </div>
+
+    <div id="statusBar" class="status loading">جاري تحميل النموذج...</div>
+
+    <div class="camera-box">
+        <video id="video" autoplay playsinline></video>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <div class="result">
+        <div id="resultLetter" class="result-letter">-</div>
+        <div id="resultConfidence" class="result-confidence">وجه الكاميرا نحو يدك واضغط التقاط</div>
+    </div>
+
+    <div class="sentence-box">
+        <div id="sentence" class="sentence-text"></div>
+    </div>
+
+    <div class="buttons">
+        <button class="btn btn-capture" id="captureBtn" onclick="captureAndPredict()">التقاط</button>
+        <button class="btn btn-clear" onclick="clearSentence()">مسح الكل</button>
+        <button class="btn btn-delete" onclick="deleteLast()">حذف</button>
+    </div>
+
+    <div class="instructions">
+        اعمل اشارة الحرف بيدك امام الكاميرا<br>
+        ثم اضغط التقاط للتعرف على الحرف
+    </div>
+
+    <script>
+        let model = null;
+        let classNames = [];
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let sentence = '';
+
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment', width: 224, height: 224 }
+                });
+                video.srcObject = stream;
+                await video.play();
+            } catch (err) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'user', width: 224, height: 224 }
+                    });
+                    video.srcObject = stream;
+                    await video.play();
+                } catch (err2) {
+                    setStatus('خطأ في تشغيل الكاميرا', 'error');
+                }
+            }
+        }
+
+        async function loadModel() {
+            try {
+                setStatus('جاري تحميل النموذج...', 'loading');
+
+                const response = await fetch('class_names.json');
+                classNames = await response.json();
+
+                model = await tf.loadLayersModel('model.json');
+
+                setStatus('النموذج جاهز!', 'ready');
+                document.getElementById('captureBtn').disabled = false;
+            } catch (err) {
+                setStatus('خطأ في تحميل النموذج: ' + err.message, 'error');
+                console.error(err);
+            }
+        }
+
+        async function captureAndPredict() {
+            if (!model) return;
+
+            canvas.width = 64;
+            canvas.height = 64;
+            ctx.drawImage(video, 0, 0, 64, 64);
+
+            let tensor = tf.browser.fromPixels(canvas)
+                .toFloat()
+                .div(255.0)
+                .expandDims(0);
+
+            const prediction = model.predict(tensor);
+            const probabilities = await prediction.data();
+            const maxIndex = probabilities.indexOf(Math.max(...probabilities));
+            const confidence = (probabilities[maxIndex] * 100).toFixed(1);
+            const letter = classNames[maxIndex];
+
+            document.getElementById('resultLetter').textContent = letter;
+            document.getElementById('resultConfidence').textContent = confidence + '%';
+
+            if (probabilities[maxIndex] > 0.5) {
+                sentence += letter;
+                document.getElementById('sentence').textContent = sentence;
+            }
+
+            tensor.dispose();
+            prediction.dispose();
+        }
+
+        function clearSentence() {
+            sentence = '';
+            document.getElementById('sentence').textContent = '';
+            document.getElementById('resultLetter').textContent = '-';
+            document.getElementById('resultConfidence').textContent = '';
+        }
+
+        function deleteLast() {
+            sentence = sentence.slice(0, -1);
+            document.getElementById('sentence').textContent = sentence;
+        }
+
+        function setStatus(text, type) {
+            const bar = document.getElementById('statusBar');
+            bar.textContent = text;
+            bar.className = 'status ' + type;
+        }
+
+        async function init() {
+            await startCamera();
+            await loadModel();
+        }
+
+        init();
+    </script>
+</body>
+</html>
