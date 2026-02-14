@@ -4,10 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SignVerse - لغة الإشارة العربية</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
         body {
             font-family: 'Segoe UI', Tahoma, sans-serif;
             background: #0f0f23;
@@ -17,17 +16,14 @@
             flex-direction: column;
             align-items: center;
         }
-
         .header {
             text-align: center;
             padding: 12px;
             width: 100%;
             background: linear-gradient(135deg, #667eea, #764ba2);
         }
-
         .header h1 { font-size: 1.4rem; }
         .header p { font-size: 0.75rem; opacity: 0.85; margin-top: 2px; }
-
         .camera-box {
             position: relative;
             width: 90%;
@@ -37,15 +33,8 @@
             overflow: hidden;
             border: 3px solid #667eea;
         }
-
-        #video {
-            width: 100%;
-            display: block;
-            transform: scaleX(-1);
-        }
-
+        #video { width: 100%; display: block; transform: scaleX(-1); }
         #canvas { display: none; }
-
         .result {
             width: 90%;
             max-width: 380px;
@@ -56,7 +45,6 @@
             text-align: center;
             border: 2px solid #333;
         }
-
         .result-letter {
             font-size: 4rem;
             font-weight: bold;
@@ -66,13 +54,7 @@
             align-items: center;
             justify-content: center;
         }
-
-        .result-confidence {
-            font-size: 0.9rem;
-            color: #aaa;
-            margin-top: 5px;
-        }
-
+        .result-confidence { font-size: 0.9rem; color: #aaa; margin-top: 5px; }
         .sentence-box {
             width: 90%;
             max-width: 380px;
@@ -84,111 +66,53 @@
             border: 2px solid #333;
             min-height: 50px;
         }
-
-        .sentence-text {
-            font-size: 1.5rem;
-            color: #e0e0ff;
-            letter-spacing: 4px;
-            direction: rtl;
-        }
-
-        .buttons {
-            display: flex;
-            gap: 10px;
-            margin: 10px auto;
-            width: 90%;
-            max-width: 380px;
-        }
-
+        .sentence-text { font-size: 1.5rem; color: #e0e0ff; letter-spacing: 4px; direction: rtl; }
+        .buttons { display: flex; gap: 10px; margin: 10px auto; width: 90%; max-width: 380px; }
         .btn {
-            flex: 1;
-            padding: 12px;
-            border: none;
-            border-radius: 12px;
-            font-size: 1rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.2s;
+            flex: 1; padding: 12px; border: none; border-radius: 12px;
+            font-size: 1rem; font-weight: bold; cursor: pointer;
         }
-
         .btn:active { transform: scale(0.95); }
-
-        .btn-capture {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: #fff;
-        }
-
-        .btn-clear {
-            background: #333;
-            color: #fff;
-        }
-
-        .btn-delete {
-            background: #cc3333;
-            color: #fff;
-            flex: 0.5;
-        }
-
-        .status {
-            text-align: center;
-            padding: 8px;
-            font-size: 0.85rem;
-            color: #aaa;
-        }
-
+        .btn-capture { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
+        .btn-clear { background: #333; color: #fff; }
+        .btn-delete { background: #cc3333; color: #fff; flex: 0.5; }
+        .status { text-align: center; padding: 8px; font-size: 0.85rem; color: #aaa; }
         .status.loading { color: #ffaa00; }
         .status.ready { color: #44cc44; }
         .status.error { color: #cc4444; }
-
         .instructions {
-            width: 90%;
-            max-width: 380px;
-            margin: 8px auto;
-            padding: 12px;
-            background: #12122a;
-            border-radius: 10px;
-            font-size: 0.8rem;
-            color: #888;
-            text-align: center;
-            line-height: 1.6;
+            width: 90%; max-width: 380px; margin: 8px auto; padding: 12px;
+            background: #12122a; border-radius: 10px; font-size: 0.8rem;
+            color: #888; text-align: center; line-height: 1.6;
         }
     </style>
 </head>
 <body>
-
     <div class="header">
         <h1>SignVerse</h1>
         <p>التعرف على حروف لغة الإشارة العربية</p>
     </div>
-
     <div id="statusBar" class="status loading">جاري تحميل النموذج...</div>
-
     <div class="camera-box">
         <video id="video" autoplay playsinline></video>
     </div>
-
     <canvas id="canvas"></canvas>
-
     <div class="result">
         <div id="resultLetter" class="result-letter">-</div>
         <div id="resultConfidence" class="result-confidence">وجه الكاميرا نحو يدك واضغط التقاط</div>
     </div>
-
     <div class="sentence-box">
         <div id="sentence" class="sentence-text"></div>
     </div>
-
     <div class="buttons">
         <button class="btn btn-capture" id="captureBtn" onclick="captureAndPredict()">التقاط</button>
         <button class="btn btn-clear" onclick="clearSentence()">مسح الكل</button>
         <button class="btn btn-delete" onclick="deleteLast()">حذف</button>
     </div>
-
     <div class="instructions">
         اعمل اشارة الحرف بيدك امام الكاميرا<br>
         ثم اضغط التقاط للتعرف على الحرف
     </div>
-
     <script>
         let model = null;
         let classNames = [];
@@ -220,14 +144,59 @@
         async function loadModel() {
             try {
                 setStatus('جاري تحميل النموذج...', 'loading');
-
                 const response = await fetch('class_names.json');
                 classNames = await response.json();
 
-                model = await tf.loadLayersModel('model.json');
+                // بناء الموديل يدوياً بدل تحميله من model.json
+                model = tf.sequential();
+                model.add(tf.layers.conv2d({inputShape: [64, 64, 3], filters: 32, kernelSize: 3, activation: 'relu'}));
+                model.add(tf.layers.maxPooling2d({poolSize: 2}));
+                model.add(tf.layers.conv2d({filters: 64, kernelSize: 3, activation: 'relu'}));
+                model.add(tf.layers.maxPooling2d({poolSize: 2}));
+                model.add(tf.layers.conv2d({filters: 128, kernelSize: 3, activation: 'relu'}));
+                model.add(tf.layers.maxPooling2d({poolSize: 2}));
+                model.add(tf.layers.flatten());
+                model.add(tf.layers.dense({units: 256, activation: 'relu'}));
+                model.add(tf.layers.dropout({rate: 0.5}));
+                model.add(tf.layers.dense({units: 32, activation: 'softmax'}));
 
+                // تحميل الأوزان من الملفات
+                const weightsResponse = await fetch('model.json');
+                const weightsManifest = await weightsResponse.json();
+                const weightSpecs = weightsManifest.weightsManifest[0].weights;
+                const weightPaths = weightsManifest.weightsManifest[0].paths;
+
+                // تحميل ملفات الأوزان
+                const buffers = [];
+                for (const path of weightPaths) {
+                    const resp = await fetch(path);
+                    const buf = await resp.arrayBuffer();
+                    buffers.push(buf);
+                }
+
+                // دمج كل الأوزان في buffer واحد
+                const totalSize = buffers.reduce((a, b) => a + b.byteLength, 0);
+                const combined = new ArrayBuffer(totalSize);
+                const combinedView = new Uint8Array(combined);
+                let offset = 0;
+                for (const buf of buffers) {
+                    combinedView.set(new Uint8Array(buf), offset);
+                    offset += buf.byteLength;
+                }
+
+                // تحويل الأوزان لـ tensors
+                const weightTensors = [];
+                let byteOffset = 0;
+                for (const spec of weightSpecs) {
+                    const size = spec.shape.reduce((a, b) => a * b, 1);
+                    const bytes = size * 4; // float32
+                    const values = new Float32Array(combined, byteOffset, size);
+                    weightTensors.push(tf.tensor(Array.from(values), spec.shape));
+                    byteOffset += bytes;
+                }
+
+                model.setWeights(weightTensors);
                 setStatus('النموذج جاهز!', 'ready');
-                document.getElementById('captureBtn').disabled = false;
             } catch (err) {
                 setStatus('خطأ في تحميل النموذج: ' + err.message, 'error');
                 console.error(err);
@@ -236,30 +205,21 @@
 
         async function captureAndPredict() {
             if (!model) return;
-
             canvas.width = 64;
             canvas.height = 64;
             ctx.drawImage(video, 0, 0, 64, 64);
-
-            let tensor = tf.browser.fromPixels(canvas)
-                .toFloat()
-                .div(255.0)
-                .expandDims(0);
-
+            let tensor = tf.browser.fromPixels(canvas).toFloat().div(255.0).expandDims(0);
             const prediction = model.predict(tensor);
             const probabilities = await prediction.data();
             const maxIndex = probabilities.indexOf(Math.max(...probabilities));
             const confidence = (probabilities[maxIndex] * 100).toFixed(1);
             const letter = classNames[maxIndex];
-
             document.getElementById('resultLetter').textContent = letter;
             document.getElementById('resultConfidence').textContent = confidence + '%';
-
             if (probabilities[maxIndex] > 0.5) {
                 sentence += letter;
                 document.getElementById('sentence').textContent = sentence;
             }
-
             tensor.dispose();
             prediction.dispose();
         }
