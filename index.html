@@ -204,7 +204,7 @@
 
     <div class="result">
         <div id="resultLetter" class="result-letter">-</div>
-        <div id="resultConfidence" class="result-confidence">فعّل التعرف التلقائي وابدأ بالإشارة</div>
+        <div id="resultConfidence" class="result-confidence">فعل التعرف التلقائي وابدأ بالاشارة</div>
     </div>
 
     <div class="sentence-box">
@@ -222,9 +222,9 @@
     </div>
 
     <div class="instructions">
-        1. اضغط "تشغيل التعرف" لبدء التعرف التلقائي<br>
+        1. اضغط تشغيل التعرف لبدء التعرف التلقائي<br>
         2. اعمل اشارة الحرف بيدك امام الكاميرا<br>
-        3. لما يظهر الحرف الصحيح اضغط "اضافة الحرف"<br>
+        3. لما يظهر الحرف الصحيح اضغط اضافة الحرف<br>
     </div>
 
     <script>
@@ -259,19 +259,165 @@
             }
         }
 
+        // Fix Keras 3 model.json to work with TensorFlow.js
+        function fixModelJson(json) {
+            const str = JSON.stringify(json);
+            // Replace batch_shape with batch_input_shape
+            let fixed = str.replace(/"batch_shape"/g, '"batch_input_shape"');
+            // Remove DTypePolicy objects and replace with simple string
+            fixed = fixed.replace(/"dtype"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"[^}]*\}/g, '"dtype":"$1"');
+            // Remove module/registered_name from initializers
+            fixed = fixed.replace(/"module"\s*:\s*"[^"]*"\s*,\s*/g, '');
+            fixed = fixed.replace(/,\s*"registered_name"\s*:\s*null/g, '');
+            // Fix inbound_nodes format from Keras 3 to Keras 2
+            let obj = JSON.parse(fixed);
+            if (obj.modelTopology && obj.modelTopology.model_config) {
+                const layers = obj.modelTopology.model_config.config.layers;
+                for (let layer of layers) {
+                    if (layer.inbound_nodes && layer.inbound_nodes.length > 0) {
+                        const newNodes = [];
+                        for (let node of layer.inbound_nodes) {
+                            if (node.args) {
+                                // Keras 3 format - convert to Keras 2
+                                const args = Array.isArray(node.args) ? node.args : [node.args];
+                                const connections = [];
+                                for (let arg of args) {
+                                    if (arg.class_name === '__keras_tensor__' && arg.config && arg.config.keras_history) {
+                                        const h = arg.config.keras_history;
+                                        connections.push([h[0], h[1], h[2], {}]);
+                                    }
+                                }
+                                if (connections.length > 0) {
+                                    newNodes.push(connections);
+                                }
+                            } else {
+                                newNodes.push(node);
+                            }
+                        }
+                        layer.inbound_nodes = newNodes;
+                    }
+                }
+            }
+            return obj;
+        }
+
         async function loadModel() {
             try {
                 setStatus('جاري تحميل النموذج...', 'loading');
 
-                const response = await fetch('class_names.json');
-                classNames = await response.json();
+                const classResponse = await fetch('class_names.json');
+                classNames = await classResponse.json();
 
-                model = await tf.loadLayersModel('model.json');
+                // Load and fix model.json
+                const modelResponse = await fetch('model.json');
+                const modelJson = await modelResponse.json();
+                const fixedJson = fixModelJson(modelJson);
+
+                // Create a blob URL for the fixed model
+                const fixedBlob = new Blob([JSON.stringify(fixedJson)], {type: 'application/json'});
+                const fixedUrl = URL.createObjectURL(fixedBlob);
+
+                // Custom IOHandler to load from blob + original shard files
+                const modelUrl = new URL('model.json', window.location.href).href;
+                const baseUrl = modelUrl.substring(0, modelUrl.lastIndexOf('/') + 1);
+
+                model = await tf.loadLayersModel(tf.io.browserHTTPRequest(fixedUrl, {
+                    fetchFunc: (url, init) => {
+                        // If requesting the model.json, return our fixed version
+                        if (url === fixedUrl || url.endsWith('model.json')) {
+                            return fetch(fixedUrl);
+                        }
+                        // For weight files, fetch from original location
+                        const filename = url.split('/').pop();
+                        return fetch(baseUrl + filename);
+                    }
+                }));
 
                 setStatus('النموذج جاهز!', 'ready');
             } catch (err) {
-                setStatus('خطأ في تحميل النموذج: ' + err.message, 'error');
-                console.error(err);
+                // Try alternative loading method
+                try {
+                    setStatus('جاري المحاولة مرة اخرى...', 'loading');
+                    
+                    const classResponse = await fetch('class_names.json');
+                    if (classNames.length === 0) {
+                        classNames = await classResponse.json();
+                    }
+
+                    // Build model manually
+                    model = tf.sequential();
+                    model.add(tf.layers.conv2d({inputShape: [64, 64, 3], filters: 32, kernelSize: 3, activation: 'relu'}));
+                    model.add(tf.layers.maxPooling2d({poolSize: 2}));
+                    model.add(tf.layers.conv2d({filters: 64, kernelSize: 3, activation: 'relu'}));
+                    model.add(tf.layers.maxPooling2d({poolSize: 2}));
+                    model.add(tf.layers.conv2d({filters: 128, kernelSize: 3, activation: 'relu'}));
+                    model.add(tf.layers.maxPooling2d({poolSize: 2}));
+                    model.add(tf.layers.flatten());
+                    model.add(tf.layers.dense({units: 256, activation: 'relu'}));
+                    model.add(tf.layers.dropout({rate: 0.5}));
+                    model.add(tf.layers.dense({units: 32, activation: 'softmax'}));
+
+                    // Load weights
+                    const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
+                    const response = await fetch(baseUrl + 'model.json');
+                    const modelJson = await response.json();
+                    const weightPaths = modelJson.weightsManifest[0].paths;
+                    const weightSpecs = modelJson.weightsManifest[0].weights;
+
+                    // Fetch all weight files
+                    const buffers = [];
+                    for (const path of weightPaths) {
+                        const resp = await fetch(baseUrl + path);
+                        const buf = await resp.arrayBuffer();
+                        buffers.push(buf);
+                    }
+
+                    // Combine buffers
+                    const totalLength = buffers.reduce((acc, buf) => acc + buf.byteLength, 0);
+                    const combined = new Uint8Array(totalLength);
+                    let offset = 0;
+                    for (const buf of buffers) {
+                        combined.set(new Uint8Array(buf), offset);
+                        offset += buf.byteLength;
+                    }
+
+                    // Create tensors from weight specs
+                    const weightData = combined.buffer;
+                    let byteOffset = 0;
+                    const namedTensors = {};
+                    for (const spec of weightSpecs) {
+                        const size = spec.shape.reduce((a, b) => a * b, 1);
+                        const byteSize = size * 4; // float32
+                        const values = new Float32Array(weightData, byteOffset, size);
+                        namedTensors[spec.name] = tf.tensor(Array.from(values), spec.shape);
+                        byteOffset += byteSize;
+                    }
+
+                    // Map weights to layers
+                    const layerWeights = [
+                        [namedTensors['sequential/conv2d/kernel'], namedTensors['sequential/conv2d/bias']],
+                        [], // maxpool
+                        [namedTensors['sequential/conv2d_1/kernel'], namedTensors['sequential/conv2d_1/bias']],
+                        [], // maxpool
+                        [namedTensors['sequential/conv2d_2/kernel'], namedTensors['sequential/conv2d_2/bias']],
+                        [], // maxpool
+                        [], // flatten
+                        [namedTensors['sequential/dense/kernel'], namedTensors['sequential/dense/bias']],
+                        [], // dropout
+                        [namedTensors['sequential/dense_1/kernel'], namedTensors['sequential/dense_1/bias']]
+                    ];
+
+                    for (let i = 0; i < model.layers.length; i++) {
+                        if (layerWeights[i] && layerWeights[i].length > 0) {
+                            model.layers[i].setWeights(layerWeights[i]);
+                        }
+                    }
+
+                    setStatus('النموذج جاهز!', 'ready');
+                } catch (err2) {
+                    setStatus('خطأ في تحميل النموذج: ' + err2.message, 'error');
+                    console.error(err2);
+                }
             }
         }
 
@@ -299,7 +445,6 @@
             document.getElementById('resultLetter').textContent = letter;
             document.getElementById('resultConfidence').textContent = confidence + '%';
 
-            // تغيير لون الإطار حسب الثقة
             const box = document.getElementById('cameraBox');
             if (currentConfidence > 0.7) {
                 box.classList.add('detecting');
@@ -319,7 +464,7 @@
             if (autoMode) {
                 btn.textContent = 'ايقاف التعرف';
                 btn.classList.remove('paused');
-                info.textContent = 'التعرف التلقائي شغّال...';
+                info.textContent = 'التعرف التلقائي شغال...';
                 info.classList.remove('paused');
                 autoInterval = setInterval(predict, 500);
             } else {
