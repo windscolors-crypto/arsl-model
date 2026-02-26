@@ -219,78 +219,76 @@ let model=null, classNames=[], hands=null;
 let isRec=false, frames=[], curResult='', sentence='';
 let facing='user', autoMode=false, autoFrames=[], handOn=false, noHand=0;
 
-// ========== DOM ==========
-const video=document.getElementById('video');
-const loadMsg=document.getElementById('loadMsg');
+const video = document.getElementById('video');
+const loadMsg = document.getElementById('loadMsg');
 
-// ========== LOAD MODEL WITH FIX ==========
+// ========== FIX & LOAD MODEL ==========
+// Fix Keras 3 batch_shape → batch_input_shape by intercepting fetch
+function fixBatchShape(obj) {
+    if (!obj || typeof obj !== 'object') return;
+    if (Array.isArray(obj)) { obj.forEach(fixBatchShape); return; }
+    if (obj.class_name === 'InputLayer' && obj.config) {
+        if (obj.config.batch_shape && !obj.config.batch_input_shape) {
+            obj.config.batch_input_shape = obj.config.batch_shape;
+            delete obj.config.batch_shape;
+            console.log('✅ Fixed batch_shape → batch_input_shape');
+        }
+    }
+    for (let k of Object.keys(obj)) {
+        if (typeof obj[k] === 'object') fixBatchShape(obj[k]);
+    }
+}
+
 async function loadModel() {
     // 1. Load class names
     loadMsg.textContent = 'تحميل قائمة الكلمات...';
     try {
         const r = await fetch(CLASSES_URL);
         classNames = await r.json();
-        console.log('Classes:', classNames.length);
+        console.log('✅ Classes loaded:', classNames.length);
     } catch(e) {
-        loadMsg.textContent = '❌ فشل تحميل الكلمات';
+        loadMsg.textContent = '❌ فشل تحميل قائمة الكلمات';
         return false;
     }
 
-    // 2. Try normal model load
+    // 2. Load model - intercept fetch to fix JSON on the fly
     loadMsg.textContent = 'تحميل نموذج الكلمات...';
+    
+    const originalFetch = window.fetch;
+    
+    window.fetch = async function(url, options) {
+        const response = await originalFetch.call(window, url, options);
+        
+        // Intercept word_model.json to fix batch_shape
+        if (typeof url === 'string' && url.includes('word_model.json')) {
+            const json = await response.json();
+            console.log('🔧 Intercepted word_model.json, fixing...');
+            
+            if (json.modelTopology) {
+                fixBatchShape(json.modelTopology);
+            }
+            
+            // Return fixed JSON as new Response
+            return new Response(JSON.stringify(json), {
+                status: 200,
+                statusText: 'OK',
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+        
+        return response;
+    };
+
     try {
         model = await tf.loadLayersModel(MODEL_URL);
-        console.log('Model loaded OK');
+        console.log('✅ Model loaded! Input shape:', model.inputs[0].shape);
+        
+        // Restore original fetch
+        window.fetch = originalFetch;
         return true;
     } catch(e) {
-        console.log('Normal load failed:', e.message);
-    }
-
-    // 3. Fix Keras 3 batch_shape issue
-    loadMsg.textContent = 'إصلاح تنسيق النموذج...';
-    try {
-        const resp = await fetch(MODEL_URL);
-        let mj = await resp.json();
-
-        // Recursive fix for batch_shape → batch_input_shape
-        function fix(obj) {
-            if (!obj || typeof obj !== 'object') return;
-            if (Array.isArray(obj)) { obj.forEach(fix); return; }
-            if (obj.class_name === 'InputLayer' && obj.config) {
-                if (obj.config.batch_shape && !obj.config.batch_input_shape) {
-                    obj.config.batch_input_shape = obj.config.batch_shape;
-                    delete obj.config.batch_shape;
-                    console.log('Fixed batch_shape');
-                }
-            }
-            if (obj.config && obj.config.layers) obj.config.layers.forEach(fix);
-            for (let k of Object.keys(obj)) {
-                if (typeof obj[k] === 'object') fix(obj[k]);
-            }
-        }
-        if (mj.modelTopology) fix(mj.modelTopology);
-
-        // Load weights
-        const paths = mj.weightsManifest[0].paths;
-        const specs = mj.weightsManifest[0].weights;
-        const bufs = [];
-        for (const p of paths) {
-            console.log('Loading weight:', p);
-            const b = await fetch(p).then(r => r.arrayBuffer());
-            bufs.push(b);
-        }
-        const total = bufs.reduce((s,b) => s+b.byteLength, 0);
-        const combined = new Uint8Array(total);
-        let off = 0;
-        for (const b of bufs) { combined.set(new Uint8Array(b), off); off += b.byteLength; }
-
-        model = await tf.loadLayersModel(
-            tf.io.fromMemory(mj.modelTopology, specs, combined.buffer)
-        );
-        console.log('Model loaded with fix! Shape:', model.inputs[0].shape);
-        return true;
-    } catch(e) {
-        console.error('All methods failed:', e);
+        console.error('❌ Model load failed:', e);
+        window.fetch = originalFetch;
         loadMsg.textContent = '❌ فشل تحميل النموذج: ' + e.message;
         return false;
     }
@@ -325,13 +323,9 @@ function onHands(results) {
     handOn = ok;
     const badge = document.getElementById('handBadge');
     if (ok) {
-        badge.textContent = 'يد مكتشفة ✅';
-        badge.className = 'badge badge-yes';
-        noHand = 0;
+        badge.textContent = 'يد مكتشفة ✅'; badge.className = 'badge badge-yes'; noHand=0;
     } else {
-        badge.textContent = 'لا يوجد يد ✋';
-        badge.className = 'badge badge-no';
-        noHand++;
+        badge.textContent = 'لا يوجد يد ✋'; badge.className = 'badge badge-no'; noHand++;
     }
 
     // Manual
@@ -345,14 +339,12 @@ function onHands(results) {
 
     // Auto
     if (autoMode) {
-        const tag = document.getElementById('recTag');
-        const bar = document.getElementById('progBar');
+        const tag=document.getElementById('recTag'), bar=document.getElementById('progBar');
         if (ok) {
             autoFrames.push(lm);
             bar.style.width = (autoFrames.length/NUM_FRAMES*100)+'%';
-            tag.style.display = 'block';
-            tag.textContent = '⏺ '+autoFrames.length+'/'+NUM_FRAMES;
-            if (autoFrames.length >= NUM_FRAMES) {
+            tag.style.display='block'; tag.textContent='⏺ '+autoFrames.length+'/'+NUM_FRAMES;
+            if (autoFrames.length>=NUM_FRAMES) {
                 doPredict(autoFrames); autoFrames=[];
                 tag.style.display='none'; bar.style.width='0%';
             }
@@ -373,21 +365,20 @@ async function doPredict(buf) {
         let f=buf.slice(0,NUM_FRAMES);
         while(f.length<NUM_FRAMES) f.push(new Array(TOTAL_VALUES).fill(0));
 
-        const inp = tf.tensor3d([f],[1,NUM_FRAMES,TOTAL_VALUES]);
-        const pred = model.predict(inp);
-        const probs = await pred.data();
+        const inp=tf.tensor3d([f],[1,NUM_FRAMES,TOTAL_VALUES]);
+        const pred=model.predict(inp);
+        const probs=await pred.data();
 
-        let mi=0, mp=0;
+        let mi=0,mp=0;
         for(let i=0;i<probs.length;i++) if(probs[i]>mp){mp=probs[i];mi=i;}
 
-        const eng=classNames[mi], conf=mp;
-        const ar=ARABIC_MAP[eng]||eng;
+        const eng=classNames[mi], conf=mp, ar=ARABIC_MAP[eng]||eng;
         const pct=(conf*100).toFixed(1);
 
         document.getElementById('resHolder').style.display='none';
         const w=document.getElementById('resWord'); w.style.display='block'; w.textContent=ar;
-        const e=document.getElementById('resEng'); e.style.display='block'; e.textContent=eng;
-        const c=document.getElementById('resConf'); c.style.display='block';
+        const e2=document.getElementById('resEng'); e2.style.display='block'; e2.textContent=eng;
+        document.getElementById('resConf').style.display='block';
         document.getElementById('confTxt').textContent='الثقة: '+pct+'%';
         const cb=document.getElementById('confBar'); cb.style.width=pct+'%';
 
@@ -400,7 +391,6 @@ async function doPredict(buf) {
             document.getElementById('resCard').classList.remove('ok');
             cb.style.background='linear-gradient(90deg,#ff4444,#ff6666)';
         }
-
         inp.dispose(); pred.dispose();
     } catch(err) {
         console.error('Predict err:', err);
@@ -412,8 +402,7 @@ async function doPredict(buf) {
 function startRec() {
     if(!model) return;
     frames=[]; isRec=true;
-    const btn=document.getElementById('recBtn');
-    btn.classList.add('on');
+    document.getElementById('recBtn').classList.add('on');
     document.getElementById('camWrap').classList.add('rec-active');
     document.getElementById('progBar').classList.add('rec-bar');
     document.getElementById('progBar').style.width='0%';
@@ -422,7 +411,6 @@ function startRec() {
     document.getElementById('frameTag').textContent='0/'+NUM_FRAMES;
     document.getElementById('recTag').style.display='block';
     document.getElementById('recTag').textContent='⏺ اعملي الإشارة...';
-
     document.getElementById('resHolder').style.display='block';
     document.getElementById('resHolder').textContent='🤚 اعملي الإشارة...';
     document.getElementById('resWord').style.display='none';
@@ -439,7 +427,6 @@ function stopRec() {
     document.getElementById('recTag').style.display='none';
     document.getElementById('frameTag').style.display='none';
     document.getElementById('recHint').textContent='اضغطي الزر لتسجيل إشارة جديدة';
-
     if(frames.length>0) {
         document.getElementById('resHolder').textContent='جاري التحليل...';
         doPredict(frames);
@@ -451,11 +438,10 @@ async function setupCam() {
     loadMsg.textContent = 'تشغيل الكاميرا...';
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: facing, width:640, height:480 }
+            video: { facingMode:facing, width:640, height:480 }
         });
         video.srcObject = stream;
-        await new Promise(r => video.onloadedmetadata = r);
-
+        await new Promise(r => video.onloadedmetadata=r);
         async function loop() {
             if(video.readyState>=2) await hands.send({image:video});
             requestAnimationFrame(loop);
@@ -463,27 +449,23 @@ async function setupCam() {
         loop();
         return true;
     } catch(e) {
-        console.error('Cam err:', e);
-        loadMsg.textContent = '❌ خطأ بالكاميرا: '+e.message;
+        loadMsg.textContent='❌ خطأ بالكاميرا: '+e.message;
         return false;
     }
 }
 
 // ========== EVENTS ==========
 document.getElementById('recBtn').addEventListener('click', () => {
-    if(autoMode) return;
-    isRec ? stopRec() : startRec();
+    if(autoMode) return; isRec ? stopRec() : startRec();
 });
-
 document.getElementById('flipBtn').addEventListener('click', async () => {
-    facing = facing==='user'?'environment':'user';
-    video.style.transform = facing==='user'?'scaleX(-1)':'scaleX(1)';
+    facing=facing==='user'?'environment':'user';
+    video.style.transform=facing==='user'?'scaleX(-1)':'scaleX(1)';
     if(video.srcObject) video.srcObject.getTracks().forEach(t=>t.stop());
     await setupCam();
 });
-
 document.getElementById('addBtn').addEventListener('click', () => {
-    if(curResult) { sentence+=curResult; document.getElementById('sentBox').textContent=sentence; }
+    if(curResult){sentence+=curResult; document.getElementById('sentBox').textContent=sentence;}
 });
 document.getElementById('spaceBtn').addEventListener('click', () => {
     sentence+=' '; document.getElementById('sentBox').textContent=sentence;
@@ -495,20 +477,17 @@ document.getElementById('clrBtn').addEventListener('click', () => {
     sentence=''; document.getElementById('sentBox').textContent='';
 });
 document.getElementById('speakBtn').addEventListener('click', () => {
-    if(sentence && 'speechSynthesis' in window) {
-        const u=new SpeechSynthesisUtterance(sentence);
-        u.lang='ar-SA'; speechSynthesis.speak(u);
+    if(sentence&&'speechSynthesis'in window){
+        const u=new SpeechSynthesisUtterance(sentence); u.lang='ar-SA'; speechSynthesis.speak(u);
     }
 });
-
 document.getElementById('btnManual').addEventListener('click', () => {
     autoMode=false;
     document.getElementById('btnManual').classList.add('active');
     document.getElementById('btnAuto').classList.remove('active');
     document.getElementById('ctrlDiv').style.display='flex';
     document.getElementById('recHint').style.display='block';
-    autoFrames=[];
-    document.getElementById('recTag').style.display='none';
+    autoFrames=[]; document.getElementById('recTag').style.display='none';
     document.getElementById('progBar').style.width='0%';
 });
 document.getElementById('btnAuto').addEventListener('click', () => {
