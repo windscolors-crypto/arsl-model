@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Shell Voice - ترجمة الكلمات</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: #0a0a1a;
+            color: #fff;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        .app-container {
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 10px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 8px 0;
+        }
+        
+        .header h1 {
+            font-size: 1.3rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #00d4aa, #0099ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .header .subtitle {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 2px;
+        }
+        
+        .camera-wrapper {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4/3;
+            border-radius: 16px;
+            overflow: hidden;
+            background: #111;
+            margin: 8px 0;
+            border: 2px solid #222;
+        }
+        
+        .camera-wrapper.recording {
+            border-color: #ff4444;
+            box-shadow: 0 0 20px rgba(255, 68, 68, 0.3);
+        }
+        
+        .camera-wrapper.recording::after {
+            content: '⏺ تسجيل...';
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 0, 0, 0.8);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-family: 'Cairo', sans-serif;
+            animation: pulse-rec 1s infinite;
+            z-index: 10;
+        }
+        
+        @keyframes pulse-rec {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+        
+        #canvas { display: none; }
+        
+        .camera-overlay {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0,0,0,0.6);
+            padding: 4px 12px;
+            border-radius: 20px;
+        }
+        
+        .hand-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff4444;
+            transition: background 0.3s;
+        }
+        
+        .hand-status.detected {
+            background: #00ff88;
+            box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+        }
+        
+        .hand-label { font-size: 0.7rem; color: #ccc; }
+        
+        .flip-btn {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.5);
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            font-size: 1.2rem;
+            cursor: pointer;
+            z-index: 10;
+        }
+        
+        .record-section {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px 0;
+        }
+        
+        .record-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            border: 4px solid #00d4aa;
+            background: transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+        
+        .record-btn:active { transform: scale(0.95); }
+        
+        .record-btn .inner {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #00d4aa, #0099ff);
+            transition: all 0.3s;
+        }
+        
+        .record-btn.recording .inner {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            background: #ff4444;
+        }
+        
+        .record-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        
+        .record-hint {
+            font-size: 0.75rem;
+            color: #888;
+            text-align: center;
+            margin-top: 4px;
+        }
+        
+        .progress-container {
+            width: 100%;
+            height: 6px;
+            background: #222;
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 4px 0;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #00d4aa, #0099ff);
+            border-radius: 3px;
+            transition: width 0.1s;
+        }
+        
+        .progress-bar.recording {
+            background: linear-gradient(90deg, #ff4444, #ff8800);
+        }
+        
+        .frame-count {
+            font-size: 0.7rem;
+            color: #666;
+            text-align: center;
+        }
+        
+        .result-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px 0;
+        }
+        
+        .result-card {
+            width: 100%;
+            background: linear-gradient(135deg, #111, #1a1a2e);
+            border: 1px solid #333;
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            min-height: 90px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .result-card.success {
+            border-color: #00d4aa;
+            box-shadow: 0 0 20px rgba(0, 212, 170, 0.1);
+        }
+        
+        .result-word {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: #00d4aa;
+            margin: 8px 0;
+        }
+        
+        .result-english { font-size: 1rem; color: #888; }
+        .result-confidence { font-size: 0.8rem; color: #666; margin-top: 4px; }
+        .result-placeholder { color: #555; font-size: 0.9rem; }
+        
+        .sentence-section {
+            width: 100%;
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 12px;
+            padding: 12px;
+            margin-top: 8px;
+        }
+        
+        .sentence-display {
+            min-height: 40px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #eee;
+            text-align: center;
+            padding: 8px;
+            border-bottom: 1px solid #222;
+            margin-bottom: 8px;
+            word-wrap: break-word;
+        }
+        
+        .sentence-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .sentence-btn {
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 1px solid #333;
+            background: #1a1a2e;
+            color: #ccc;
+            font-family: 'Cairo', sans-serif;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .sentence-btn:hover { background: #252540; border-color: #00d4aa; }
+        
+        .sentence-btn.add-btn {
+            background: linear-gradient(135deg, #00d4aa22, #0099ff22);
+            border-color: #00d4aa;
+            color: #00d4aa;
+        }
+        
+        .sentence-btn.speak-btn {
+            background: linear-gradient(135deg, #ff880022, #ff444422);
+            border-color: #ff8800;
+            color: #ff8800;
+        }
+        
+        .status-bar {
+            text-align: center;
+            padding: 6px;
+            font-size: 0.75rem;
+            color: #666;
+        }
+        
+        .loading-screen {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #0a0a1a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #222;
+            border-top-color: #00d4aa;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .loading-text { margin-top: 16px; color: #888; font-size: 0.9rem; }
+        .loading-step { color: #555; font-size: 0.75rem; margin-top: 8px; }
+    </style>
+</head>
+<body>
+
+<!-- Loading Screen -->
+<div class="loading-screen" id="loadingScreen">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">جاري تحميل النموذج...</div>
+    <div class="loading-step" id="loadingStep">تهيئة الكاميرا</div>
+</div>
+
+<div class="app-container">
+    <div class="header">
+        <h1>🐚 Shell Voice - الكلمات</h1>
+        <div class="subtitle">ترجمة لغة الإشارة العربية إلى كلمات</div>
+    </div>
+    
+    <div class="camera-wrapper" id="cameraWrapper">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+        <button class="flip-btn" id="flipBtn">🔄</button>
+        <div class="camera-overlay">
+            <div class="hand-status" id="handStatus"></div>
+            <span class="hand-label" id="handLabel">لا يوجد يد</span>
+        </div>
+    </div>
+    
+    <div class="progress-container">
+        <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div class="frame-count" id="frameCount"></div>
+    
+    <div class="record-section">
+        <div style="text-align:center;">
+            <button class="record-btn" id="recordBtn" disabled>
+                <div class="inner"></div>
+            </button>
+            <div class="record-hint" id="recordHint">اضغطي للتسجيل</div>
+        </div>
+    </div>
+    
+    <div class="result-section">
+        <div class="result-card" id="resultCard">
+            <div class="result-placeholder" id="resultPlaceholder">
+                سوّي إشارة أمام الكاميرا واضغطي زر التسجيل
+            </div>
+            <div class="result-word" id="resultWord" style="display:none;"></div>
+            <div class="result-english" id="resultEnglish" style="display:none;"></div>
+            <div class="result-confidence" id="resultConfidence" style="display:none;"></div>
+        </div>
+        
+        <div class="sentence-section">
+            <div class="sentence-display" id="sentenceDisplay">الجملة ستظهر هنا...</div>
+            <div class="sentence-buttons">
+                <button class="sentence-btn add-btn" id="addWordBtn" disabled>+ إضافة</button>
+                <button class="sentence-btn" id="deleteBtn">حذف ❌</button>
+                <button class="sentence-btn" id="clearBtn">مسح الكل</button>
+                <button class="sentence-btn speak-btn" id="speakBtn">نطق 🔊</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="status-bar" id="statusBar">جاري التحميل...</div>
+</div>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+
+<script>
+// ===== CONFIG =====
+const MODEL_URL = 'https://windscolors-crypto.github.io/arsl-model/word_model.json';
+const CLASSES_URL = 'https://windscolors-crypto.github.io/arsl-model/word_classes.json';
+const NUM_FRAMES = 30;
+const CONFIDENCE_THRESHOLD = 0.5;
+
+// Arabic translations
+const ARABIC_MAP = {
+    '0': '٠ صفر', '1': '١ واحد', '2': '٢ اثنان', '3': '٣ ثلاثة', '4': '٤ أربعة',
+    'eat': 'يأكل', 'drink': 'يشرب', 'sleep': 'ينام', 'wakeup': 'يستيقظ',
+    'sit': 'يجلس', 'stand': 'يقف', 'love': 'حب', 'take': 'يأخذ',
+    'help': 'مساعدة', 'think': 'يفكر', 'choose': 'يختار',
+    'father': 'أب', 'mother': 'أم', 'family': 'عائلة',
+    'brother': 'أخ', 'grandfather': 'جد', 'grandmother': 'جدة',
+    'hearing_disability': 'إعاقة سمعية', 'health': 'صحة', 'silence': 'صمت'
+};
+
+// ===== STATE =====
+let model = null;
+let classNames = [];
+let isRecording = false;
+let frames = [];
+let handsDetector = null;
+let useFrontCamera = true;
+let camera = null;
+let sentence = '';
+let lastPrediction = '';
+
+// ===== DOM =====
+const video = document.getElementById('video');
+const recordBtn = document.getElementById('recordBtn');
+const progressBar = document.getElementById('progressBar');
+const frameCount = document.getElementById('frameCount');
+const cameraWrapper = document.getElementById('cameraWrapper');
+const handStatus = document.getElementById('handStatus');
+const handLabel = document.getElementById('handLabel');
+const resultCard = document.getElementById('resultCard');
+const resultWord = document.getElementById('resultWord');
+const resultEnglish = document.getElementById('resultEnglish');
+const resultConfidence = document.getElementById('resultConfidence');
+const resultPlaceholder = document.getElementById('resultPlaceholder');
+const recordHint = document.getElementById('recordHint');
+const loadingScreen = document.getElementById('loadingScreen');
+const loadingStep = document.getElementById('loadingStep');
+const statusBar = document.getElementById('statusBar');
+const sentenceDisplay = document.getElementById('sentenceDisplay');
+const addWordBtn = document.getElementById('addWordBtn');
+
+// ===== EXTRACT HAND LANDMARKS =====
+function extractLandmarks(results) {
+    let landmarks = new Array(126).fill(0);
+    
+    if (results && results.multiHandLandmarks) {
+        for (let h = 0; h < Math.min(results.multiHandLandmarks.length, 2); h++) {
+            const hand = results.multiHandLandmarks[h];
+            const offset = h * 63;
+            for (let i = 0; i < 21; i++) {
+                landmarks[offset + i * 3]     = hand[i].x;
+                landmarks[offset + i * 3 + 1] = hand[i].y;
+                landmarks[offset + i * 3 + 2] = hand[i].z;
+            }
+        }
+    }
+    return landmarks;
+}
+
+// ===== MEDIAPIPE HANDS =====
+async function initHands() {
+    loadingStep.textContent = 'تحميل MediaPipe Hands...';
+    
+    handsDetector = new Hands({
+        locateFile: (file) =>
+            `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${file}`
+    });
+    
+    handsDetector.setOptions({
+        maxNumHands: 2,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+    });
+    
+    handsDetector.onResults(onHandResults);
+}
+
+function onHandResults(results) {
+    const hasHands = results.multiHandLandmarks && results.multiHandLandmarks.length > 0;
+    handStatus.classList.toggle('detected', hasHands);
+    handLabel.textContent = hasHands
+        ? `تم كشف ${results.multiHandLandmarks.length} يد`
+        : 'لا يوجد يد';
+    
+    if (isRecording && hasHands) {
+        frames.push(extractLandmarks(results));
+        const progress = (frames.length / NUM_FRAMES) * 100;
+        progressBar.style.width = progress + '%';
+        frameCount.textContent = `${frames.length} / ${NUM_FRAMES} إطار`;
+        
+        if (frames.length >= NUM_FRAMES) stopRecording();
+    }
+}
+
+// ===== CAMERA =====
+async function initCamera() {
+    loadingStep.textContent = 'تشغيل الكاميرا...';
+    if (camera) camera.stop();
+    
+    camera = new Camera(video, {
+        onFrame: async () => { await handsDetector.send({ image: video }); },
+        width: 640,
+        height: 480,
+        facingMode: useFrontCamera ? 'user' : 'environment'
+    });
+    await camera.start();
+}
+
+// ===== LOAD MODEL =====
+async function loadModel() {
+    loadingStep.textContent = 'تحميل نموذج الكلمات...';
+    
+    try {
+        const classResponse = await fetch(CLASSES_URL);
+        classNames = await classResponse.json();
+        console.log('Classes:', classNames);
+        
+        model = await tf.loadLayersModel(MODEL_URL);
+        console.log('Model loaded, input shape:', model.inputs[0].shape);
+        return true;
+    } catch (error) {
+        console.error('Direct load failed, trying fix...', error);
+        
+        try {
+            loadingStep.textContent = 'إصلاح تنسيق النموذج...';
+            const response = await fetch(MODEL_URL);
+            let modelJSON = await response.json();
+            
+            // Fix Keras 3 batch_shape issue
+            if (modelJSON.modelTopology && modelJSON.modelTopology.config) {
+                const layers = modelJSON.modelTopology.config.layers || [];
+                for (let layer of layers) {
+                    if (layer.config && layer.config.batch_shape && !layer.config.batch_input_shape) {
+                        layer.config.batch_input_shape = layer.config.batch_shape;
+                        delete layer.config.batch_shape;
+                    }
+                }
+            }
+            
+            const baseURL = MODEL_URL.replace('word_model.json', '');
+            const weightPaths = modelJSON.weightsManifest[0].paths.map(p => baseURL + p);
+            const weightSpecs = modelJSON.weightsManifest[0].weights;
+            
+            const buffers = await Promise.all(weightPaths.map(p => fetch(p).then(r => r.arrayBuffer())));
+            const totalSize = buffers.reduce((s, b) => s + b.byteLength, 0);
+            const combined = new Uint8Array(totalSize);
+            let offset = 0;
+            for (const buf of buffers) {
+                combined.set(new Uint8Array(buf), offset);
+                offset += buf.byteLength;
+            }
+            
+            model = await tf.loadLayersModel(
+                tf.io.fromMemory(modelJSON.modelTopology, weightSpecs, combined.buffer)
+            );
+            console.log('Model loaded with fix');
+            return true;
+        } catch (e2) {
+            console.error('All loading attempts failed:', e2);
+            statusBar.textContent = '❌ خطأ في تحميل النموذج';
+            return false;
+        }
+    }
+}
+
+// ===== RECORDING =====
+function startRecording() {
+    if (!model) return;
+    frames = [];
+    isRecording = true;
+    
+    recordBtn.classList.add('recording');
+    cameraWrapper.classList.add('recording');
+    progressBar.classList.add('recording');
+    progressBar.style.width = '0%';
+    recordHint.textContent = 'سوّي الإشارة الآن...';
+    frameCount.textContent = `0 / ${NUM_FRAMES}`;
+    
+    resultPlaceholder.style.display = 'block';
+    resultPlaceholder.textContent = '🤚 سوّي الإشارة...';
+    resultWord.style.display = 'none';
+    resultEnglish.style.display = 'none';
+    resultConfidence.style.display = 'none';
+    resultCard.classList.remove('success');
+}
+
+async function stopRecording() {
+    isRecording = false;
+    recordBtn.classList.remove('recording');
+    cameraWrapper.classList.remove('recording');
+    progressBar.classList.remove('recording');
+    recordHint.textContent = 'اضغطي للتسجيل';
+    
+    if (frames.length < 5) {
+        resultPlaceholder.textContent = '⚠️ لم يتم كشف يد كافية، حاولي مرة ثانية';
+        return;
+    }
+    
+    // Pad to NUM_FRAMES
+    while (frames.length < NUM_FRAMES) frames.push(new Array(126).fill(0));
+    frames = frames.slice(0, NUM_FRAMES);
+    
+    await predict(frames);
+}
+
+// ===== PREDICTION =====
+async function predict(frameData) {
+    resultPlaceholder.textContent = '⏳ جاري التحليل...';
+    
+    try {
+        const input = tf.tensor3d([frameData], [1, NUM_FRAMES, 126]);
+        const prediction = model.predict(input);
+        const probs = await prediction.data();
+        
+        const maxIdx = probs.indexOf(Math.max(...probs));
+        const confidence = probs[maxIdx];
+        const englishWord = classNames[maxIdx];
+        const arabicWord = ARABIC_MAP[englishWord] || englishWord;
+        
+        lastPrediction = arabicWord;
+        
+        resultPlaceholder.style.display = 'none';
+        resultWord.style.display = 'block';
+        resultEnglish.style.display = 'block';
+        resultConfidence.style.display = 'block';
+        
+        resultWord.textContent = arabicWord;
+        resultEnglish.textContent = englishWord;
+        resultConfidence.textContent = `نسبة الثقة: ${(confidence * 100).toFixed(1)}%`;
+        
+        if (confidence >= CONFIDENCE_THRESHOLD) {
+            resultCard.classList.add('success');
+            addWordBtn.disabled = false;
+        } else {
+            resultCard.classList.remove('success');
+            resultConfidence.textContent += ' ⚠️ ثقة منخفضة';
+        }
+        
+        input.dispose();
+        prediction.dispose();
+    } catch (err) {
+        console.error('Prediction error:', err);
+        resultPlaceholder.textContent = '❌ خطأ: ' + err.message;
+    }
+}
+
+// ===== SENTENCE BUILDER =====
+addWordBtn.addEventListener('click', () => {
+    if (lastPrediction) {
+        sentence += lastPrediction + ' ';
+        sentenceDisplay.textContent = sentence;
+        addWordBtn.disabled = true;
+    }
+});
+
+document.getElementById('deleteBtn').addEventListener('click', () => {
+    const words = sentence.trim().split(/\s+/);
+    words.pop();
+    sentence = words.length > 0 ? words.join(' ') + ' ' : '';
+    sentenceDisplay.textContent = sentence || 'الجملة ستظهر هنا...';
+});
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+    sentence = '';
+    sentenceDisplay.textContent = 'الجملة ستظهر هنا...';
+});
+
+document.getElementById('speakBtn').addEventListener('click', () => {
+    if (sentence.trim()) {
+        const u = new SpeechSynthesisUtterance(sentence.trim());
+        u.lang = 'ar-SA';
+        u.rate = 0.9;
+        speechSynthesis.speak(u);
+    }
+});
+
+// ===== BUTTONS =====
+recordBtn.addEventListener('click', () => {
+    if (isRecording) stopRecording();
+    else startRecording();
+});
+
+document.getElementById('flipBtn').addEventListener('click', async () => {
+    useFrontCamera = !useFrontCamera;
+    await initCamera();
+});
+
+// ===== INIT =====
+async function init() {
+    try {
+        await initHands();
+        await initCamera();
+        const ok = await loadModel();
+        
+        if (ok) {
+            recordBtn.disabled = false;
+            statusBar.textContent = `✅ جاهز - ${classNames.length} كلمة`;
+            loadingScreen.style.display = 'none';
+        } else {
+            loadingStep.textContent = '❌ فشل تحميل النموذج';
+        }
+    } catch (err) {
+        console.error('Init error:', err);
+        loadingStep.textContent = '❌ خطأ: ' + err.message;
+    }
+}
+
+init();
+</script>
+</body>
+</html>
