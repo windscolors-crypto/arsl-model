@@ -235,6 +235,9 @@ window.playSign=function(en){
   if(!frames||!frames.length){noSign.style.display='block';dbg('⚠️ "'+en+'" غير موجودة');return;}
   dbg('▶ '+en+' ('+frames.length+' frame)');
 
+  // ★ أوقف الـ mixer عشان ما يلغي تحريكنا اليدوي
+  if(mixer){ mixer.stopAllAction(); mixer=null; }
+
   curFrames=frames;frameIdx=0;
   if(playTick) clearInterval(playTick);
   playTick=setInterval(()=>{
