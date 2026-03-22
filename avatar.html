@@ -183,27 +183,27 @@ function applyHandPose(lms, boneTable, wristName){
 
   const isRight = wristName==='RightHand';
 
-  // ── 1. ساعد (ForeArm/كوع) ──
-  // نحرك الساعد ليشير نحو موقع الرسغ (landmark 0)
-  // الرسغ في MediaPipe: x,y مكانه في الصورة
-  // نحول x إلى اتجاه أفقي، y إلى اتجاه عمودي
-  const foreArmName = isRight ? 'RightForeArm' : 'LeftForeArm';
-  const foreArm = findBone(foreArmName);
+  // ── 1. ساعد (ForeArm) — Euler مباشرة ──
+  // موقع الرسغ (0→1): نحوّله لزاوية دوران
+  const foreArm = findBone(isRight?'RightForeArm':'LeftForeArm');
   if(foreArm){
-    // MediaPipe مرايا — نعكس X
-    const wx = -(lms[0][0] - 0.5) * 2;
-    const wy = -(lms[0][1] - 0.5) * 2;
-    const wz = -Math.abs(lms[0][2]) * 0.5;
+    const wy = -(lms[0][1] - 0.4);      // كم اليد فوق/تحت المركز
+    const wx = (lms[0][0] - 0.5);       // كم اليد يمين/شمال
+    // رفع/خفض الذراع
+    const targetZ = isRight
+      ? THREE.MathUtils.clamp( wy * Math.PI * 0.8, -1.2, 0.4)
+      : THREE.MathUtils.clamp(-wy * Math.PI * 0.8, -1.2, 0.4);
+    // ثني للأمام/للخلف
+    const targetX = THREE.MathUtils.clamp(wx * Math.PI * 0.5, -0.8, 0.8);
 
-    const sideX = isRight ? 0.5 + wx*0.5 : -0.5 + wx*0.5;
-    rotateBone(foreArm, sideX, wy*0.5, wz);
+    foreArm.rotation.z += (targetZ - foreArm.rotation.z) * 0.35;
+    foreArm.rotation.x += (targetX - foreArm.rotation.x) * 0.35;
     foreArm.updateMatrixWorld(true);
   }
 
-  // ── 2. رسغ (Hand) ──
+  // ── 2. رسغ ──
   const wb=findBone(wristName);
   if(wb){
-    // عكس X لأن MediaPipe مرايا
     rotateBone(wb,-(lms[9][0]-lms[0][0]),-(lms[9][1]-lms[0][1]),-(lms[9][2]-lms[0][2]));
     wb.updateMatrixWorld(true);
   }
