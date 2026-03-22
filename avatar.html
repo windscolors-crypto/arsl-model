@@ -181,13 +181,34 @@ function applyHandPose(lms, boneTable, wristName){
   const active=lms.some(l=>l[0]!==0||l[1]!==0||l[2]!==0);
   if(!active) return;
 
-  // رسغ
+  const isRight = wristName==='RightHand';
+
+  // ── 1. ساعد (ForeArm/كوع) ──
+  // نحرك الساعد ليشير نحو موقع الرسغ (landmark 0)
+  // الرسغ في MediaPipe: x,y مكانه في الصورة
+  // نحول x إلى اتجاه أفقي، y إلى اتجاه عمودي
+  const foreArmName = isRight ? 'RightForeArm' : 'LeftForeArm';
+  const foreArm = findBone(foreArmName);
+  if(foreArm){
+    // موقع الرسغ بالنسبة لمركز الصورة (0.5,0.5)
+    const wx = (lms[0][0] - 0.5) * 2;   // -1 يسار → +1 يمين
+    const wy = -(lms[0][1] - 0.5) * 2;  // -1 أسفل → +1 أعلى
+    const wz = -Math.abs(lms[0][2]) * 0.5;
+
+    // اليد اليمنى تمتد لليمين، اليسرى لليسار
+    const sideX = isRight ? 0.6 + wx*0.4 : -0.6 + wx*0.4;
+    rotateBone(foreArm, sideX, wy*0.5, wz);
+    foreArm.updateMatrixWorld(true);
+  }
+
+  // ── 2. رسغ (Hand) ──
   const wb=findBone(wristName);
   if(wb){
     rotateBone(wb,lms[9][0]-lms[0][0],-(lms[9][1]-lms[0][1]),-(lms[9][2]-lms[0][2]));
     wb.updateMatrixWorld(true);
   }
-  // أصابع
+
+  // ── 3. أصابع ──
   for(const[bn,f,t] of boneTable){
     const b=findBone(bn);
     if(!b) continue;
