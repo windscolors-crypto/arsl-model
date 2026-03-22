@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Text2Sign – Shell Voice</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+    body {
+      background:#0d1117;
+      color:#e6edf3;
+      font-family:'Segoe UI',Tahoma,Arial,sans-serif;
+      height:100vh; height:100dvh;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+    }
+
+    /* ── Header ── */
+    #header {
+      flex-shrink:0;
+      padding:8px 14px;
+      background:linear-gradient(135deg,#161b22,#0d1117);
+      border-bottom:1px solid #21262d;
+      display:flex; align-items:center; gap:10px;
+    }
+    #header h1 {
+      font-size:16px; font-weight:700; letter-spacing:.5px;
+      background:linear-gradient(90deg,#00d4ff,#00ff88);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    }
+    #logo { flex-shrink:0; }
+
+    /* ── 3-D canvas area ── */
+    #canvas-wrap {
+      position:relative;
+      flex:1; min-height:0;
+      overflow:hidden;
+    }
+    #three-canvas { display:block; width:100%; height:100%; }
+
+    /* word overlay */
+    #word-overlay {
+      position:absolute; top:10px; left:50%; transform:translateX(-50%);
+      text-align:center; pointer-events:none;
+    }
+    #word-ar {
+      font-size:30px; font-weight:700; color:#00d4ff;
+      text-shadow:0 0 18px rgba(0,212,255,.55);
+      line-height:1.1;
+    }
+    #word-en { font-size:13px; color:#8b949e; margin-top:3px; }
+
+    /* progress bar */
+    #prog-wrap {
+      position:absolute; bottom:8px; left:8%; right:8%;
+      height:3px; background:#21262d; border-radius:2px;
+    }
+    #prog-bar {
+      height:100%; width:0%;
+      background:linear-gradient(90deg,#00d4ff,#00ff88);
+      border-radius:2px;
+    }
+
+    /* no-sign message */
+    #no-sign {
+      display:none;
+      position:absolute; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      text-align:center; color:#8b949e;
+    }
+    #no-sign .emoji { font-size:38px; }
+    #no-sign p { margin-top:8px; font-size:14px; }
+
+    /* loading overlay */
+    #loading {
+      position:absolute; inset:0;
+      background:#0d1117;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center; gap:14px;
+      z-index:10;
+    }
+    .spinner {
+      width:44px; height:44px;
+      border:3px solid #21262d; border-top-color:#00d4ff;
+      border-radius:50%;
+      animation:spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    #loading-msg { color:#8b949e; font-size:14px; }
+
+    /* ── Words panel ── */
+    #words-panel {
+      flex-shrink:0;
+      background:#161b22;
+      border-top:1px solid #21262d;
+      padding:8px;
+      overflow-y:auto;
+      max-height:38vh;
+    }
+    #words-grid {
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:5px;
+    }
+    @media(max-width:360px) { #words-grid { grid-template-columns:repeat(3,1fr); } }
+
+    .wbtn {
+      background:#21262d;
+      border:1px solid #30363d;
+      border-radius:8px;
+      padding:7px 3px;
+      color:#e6edf3;
+      font-size:12px; font-family:inherit;
+      cursor:pointer; text-align:center;
+      transition:background .15s, border-color .15s, color .15s;
+      -webkit-appearance:none;
+    }
+    .wbtn .ar { display:block; font-size:14px; font-weight:600; line-height:1.2; }
+    .wbtn .en { display:block; font-size:10px; color:#8b949e; margin-top:2px; }
+    .wbtn:active, .wbtn.active {
+      background:#1a3a55; border-color:#00d4ff; color:#00d4ff;
+    }
+    .wbtn.active .en { color:#0099bb; }
+    .wbtn.unavail { opacity:.35; pointer-events:none; }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div id="header">
+  <svg id="logo" width="26" height="26" viewBox="0 0 26 26" fill="none">
+    <circle cx="13" cy="13" r="12" stroke="#00d4ff" stroke-width="1.5" opacity=".4"/>
+    <ellipse cx="13" cy="13" rx="7" ry="12" stroke="#00d4ff" stroke-width="1" opacity=".5" transform="rotate(-30 13 13)"/>
+    <circle cx="13" cy="13" r="2.5" fill="#00d4ff" opacity=".9"/>
+  </svg>
+  <h1>Shell Voice — النص إلى إشارة</h1>
+</div>
+
+<!-- 3D Scene -->
+<div id="canvas-wrap">
+  <canvas id="three-canvas"></canvas>
+
+  <div id="word-overlay">
+    <div id="word-ar">—</div>
+    <div id="word-en"></div>
+  </div>
+
+  <div id="prog-wrap"><div id="prog-bar"></div></div>
+
+  <div id="no-sign">
+    <div class="emoji">🤲</div>
+    <p>هذه الإشارة غير متوفرة بعد</p>
+  </div>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <div id="loading-msg">جاري تحميل بيانات الإشارات…</div>
+  </div>
+</div>
+
+<!-- Word Buttons -->
+<div id="words-panel">
+  <div id="words-grid"><!-- filled by JS --></div>
+</div>
+
+
+<script>
+/* ════════════════════════════════════════════════
+   1.  WORD DICTIONARY
+════════════════════════════════════════════════ */
+const WORDS = {
+  // أرقام
+  '0':                  { ar:'صفر',          cat:'أرقام' },
+  '1':                  { ar:'واحد',         cat:'أرقام' },
+  '2':                  { ar:'اثنان',        cat:'أرقام' },
+  '3':                  { ar:'ثلاثة',        cat:'أرقام' },
+  '4':                  { ar:'أربعة',        cat:'أرقام' },
+  // أفعال
+  'eat':                { ar:'أكل',          cat:'أفعال' },
+  'drink':              { ar:'شرب',          cat:'أفعال' },
+  'sleep':              { ar:'نوم',          cat:'أفعال' },
+  'wakeup':             { ar:'استيقاظ',      cat:'أفعال' },
+  'sit':                { ar:'جلوس',         cat:'أفعال' },
+  'stand':              { ar:'وقوف',         cat:'أفعال' },
+  'love':               { ar:'حب',           cat:'أفعال' },
+  'take':               { ar:'أخذ',          cat:'أفعال' },
+  'help':               { ar:'مساعدة',       cat:'أفعال' },
+  'think':              { ar:'تفكير',        cat:'أفعال' },
+  'choose':             { ar:'اختيار',       cat:'أفعال' },
+  // عائلة
+  'father':             { ar:'أب',           cat:'عائلة' },
+  'mother':             { ar:'أم',           cat:'عائلة' },
+  'family':             { ar:'عائلة',        cat:'عائلة' },
+  'brother':            { ar:'أخ',           cat:'عائلة' },
+  'grandfather':        { ar:'جد',           cat:'عائلة' },
+  'grandmother':        { ar:'جدة',          cat:'عائلة' },
+  // أخرى
+  'hearing_disability': { ar:'إعاقة سمعية',  cat:'أخرى'  },
+  'health':             { ar:'صحة',          cat:'أخرى'  },
+  'silence':            { ar:'صمت',          cat:'أخرى'  },
+};
+
+// خريطة عكسية: عربي → إنجليزي
+const AR2EN = {};
+for (const [en, v] of Object.entries(WORDS)) AR2EN[v.ar] = en;
+
+/* ════════════════════════════════════════════════
+   2.  THREE.JS SETUP
+════════════════════════════════════════════════ */
+const wrap   = document.getElementById('canvas-wrap');
+const canvas = document.getElementById('three-canvas');
+
+const scene    = new THREE.Scene();
+scene.background = new THREE.Color(0x0d1117);
+
+let W = wrap.clientWidth, H = wrap.clientHeight;
+
+const camera = new THREE.PerspectiveCamera(52, W / H, 0.1, 100);
+camera.position.set(0, 0.2, 5);
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(W, H);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+// Lighting
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const dl1 = new THREE.DirectionalLight(0x88bbff, 1.2);
+dl1.position.set(2, 3, 4); scene.add(dl1);
+const dl2 = new THREE.DirectionalLight(0x88ffcc, 0.5);
+dl2.position.set(-3, -1, 2); scene.add(dl2);
+
+// Subtle floor grid
+const grid = new THREE.GridHelper(10, 24, 0x1a2233, 0x161d27);
+grid.position.y = -2.2; scene.add(grid);
+
+// MediaPipe hand skeleton connections
+const CONNECTIONS = [
+  [0,1],[1,2],[2,3],[3,4],
+  [0,5],[5,6],[6,7],[7,8],
+  [5,9],[9,10],[10,11],[11,12],
+  [9,13],[13,14],[14,15],[15,16],
+  [13,17],[17,18],[18,19],[19,20],
+  [0,17]
+];
+
+/* ─── Create one hand (joints + bone lines) ─── */
+function makeHand(color, emissive) {
+  const group = new THREE.Group();
+  const mat   = new THREE.MeshPhongMaterial({ color, emissive, shininess:90 });
+  const lmat  = new THREE.LineBasicMaterial({ color, transparent:true, opacity:.75 });
+  const geo   = new THREE.SphereGeometry(.042, 10, 10);
+
+  const joints = [];
+  for (let i = 0; i < 21; i++) {
+    const m = new THREE.Mesh(geo, mat);
+    m.visible = false;
+    group.add(m);
+    joints.push(m);
+  }
+
+  const bones = [];
+  for (const [a, b] of CONNECTIONS) {
+    const pts = [new THREE.Vector3(), new THREE.Vector3()];
+    const lg  = new THREE.BufferGeometry().setFromPoints(pts);
+    const ln  = new THREE.Line(lg, lmat);
+    ln.visible = false;
+    group.add(ln);
+    bones.push({ ln, a, b, pts });
+  }
+
+  scene.add(group);
+  return { group, joints, bones };
+}
+
+const LEFT  = makeHand(0x00d4ff, 0x002244);  // cyan  = left hand
+const RIGHT = makeHand(0x00ff88, 0x002218);  // green = right hand
+
+/* ─── MediaPipe normalized → Three.js world ─── */
+function lm2w(x, y, z) {
+  return new THREE.Vector3(
+    (x - 0.5) * 3.6,
+    -(y - 0.5) * 3.6,
+    -z * 1.2
+  );
+}
+
+/* ─── Apply 21 landmarks to hand object ─── */
+function applyLandmarks(hand, lms) {
+  const vis = lms.some(l => l[0] !== 0 || l[1] !== 0);
+  for (let i = 0; i < 21; i++) {
+    hand.joints[i].visible = vis;
+    if (vis) hand.joints[i].position.copy(lm2w(lms[i][0], lms[i][1], lms[i][2]));
+  }
+  for (const { ln, a, b, pts } of hand.bones) {
+    ln.visible = vis;
+    if (vis) {
+      pts[0].copy(hand.joints[a].position);
+      pts[1].copy(hand.joints[b].position);
+      ln.geometry.setFromPoints(pts);
+    }
+  }
+}
+
+const EMPTY_HAND = Array.from({ length:21 }, () => [0,0,0]);
+
+/* ─── Decode one frame (handles all formats) ─── */
+function decodeFrame(frame) {
+  if (!frame || frame.length === 0) return { L: EMPTY_HAND, R: EMPTY_HAND };
+
+  /* Format A: flat number array  [x0,y0,z0, ... x41,y41,z41] */
+  if (typeof frame[0] === 'number') {
+    const n = frame.length;
+    if (n >= 126) {
+      const L = [], R = [];
+      for (let i = 0; i < 21; i++)  L.push([frame[i*3],    frame[i*3+1],    frame[i*3+2]]);
+      for (let i = 0; i < 21; i++)  R.push([frame[63+i*3], frame[63+i*3+1], frame[63+i*3+2]]);
+      return { L, R };
+    }
+    if (n >= 63) {
+      const R = [];
+      for (let i = 0; i < 21; i++) R.push([frame[i*3], frame[i*3+1], frame[i*3+2]]);
+      return { L: EMPTY_HAND, R };
+    }
+    return { L: EMPTY_HAND, R: EMPTY_HAND };
+  }
+
+  /* Format B: nested [[x,y,z], ...] */
+  if (Array.isArray(frame[0])) {
+    const n = frame.length;
+    if (n >= 42) return { L: frame.slice(0, 21),  R: frame.slice(21, 42) };
+    if (n >= 21) return { L: EMPTY_HAND,           R: frame.slice(0, 21) };
+    return { L: EMPTY_HAND, R: EMPTY_HAND };
+  }
+
+  return { L: EMPTY_HAND, R: EMPTY_HAND };
+}
+
+/* ════════════════════════════════════════════════
+   3.  ANIMATION ENGINE
+════════════════════════════════════════════════ */
+let animDB       = null;   // loaded sign_animations.json
+let playFrames   = null;   // current sign's frame array
+let frameIdx     = 0;
+let playing      = false;
+let ticker       = null;
+const FPS        = 15;     // frames per second
+
+const progBar  = document.getElementById('prog-bar');
+const wordArEl = document.getElementById('word-ar');
+const wordEnEl = document.getElementById('word-en');
+const noSign   = document.getElementById('no-sign');
+
+function stopAnim() {
+  if (ticker) clearInterval(ticker);
+  ticker = null; playing = false;
+}
+
+// ── Main public function (called by Thunkable too) ──
+window.playSign = function(rawWord) {
+  const enKey = AR2EN[rawWord] || rawWord;
+
+  // highlight button
+  document.querySelectorAll('.wbtn').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector(`.wbtn[data-key="${enKey}"]`);
+  if (btn) btn.classList.add('active');
+
+  // label
+  const info   = WORDS[enKey];
+  wordArEl.textContent = info ? info.ar : rawWord;
+  wordEnEl.textContent = enKey.replace(/_/g,' ');
+  noSign.style.display = 'none';
+
+  if (!animDB) return;
+
+  // find frames (case-insensitive)
+  let frames = animDB[enKey];
+  if (!frames) {
+    for (const k of Object.keys(animDB)) {
+      if (k.toLowerCase() === enKey.toLowerCase()) { frames = animDB[k]; break; }
+    }
+  }
+  // support { frames: [...] } nesting
+  if (frames && !Array.isArray(frames) && frames.frames) frames = frames.frames;
+
+  if (!frames || frames.length === 0) {
+    noSign.style.display = 'flex';
+    applyLandmarks(LEFT,  EMPTY_HAND);
+    applyLandmarks(RIGHT, EMPTY_HAND);
+    return;
+  }
+
+  playFrames = frames;
+  frameIdx   = 0;
+  stopAnim();
+  playing    = true;
+
+  ticker = setInterval(() => {
+    if (!playing || !playFrames) return;
+
+    const { L, R } = decodeFrame(playFrames[frameIdx]);
+    applyLandmarks(LEFT,  L);
+    applyLandmarks(RIGHT, R);
+
+    progBar.style.width = ((frameIdx + 1) / playFrames.length * 100) + '%';
+    frameIdx++;
+
+    if (frameIdx >= playFrames.length) {
+      playing = false;
+      progBar.style.width = '100%';
+      // loop with 1.2s pause
+      setTimeout(() => {
+        frameIdx = 0;
+        progBar.style.width = '0%';
+        playing  = true;
+      }, 1200);
+    }
+  }, 1000 / FPS);
+};
+
+/* ════════════════════════════════════════════════
+   4.  THREE.JS RENDER LOOP
+════════════════════════════════════════════════ */
+(function loop() {
+  requestAnimationFrame(loop);
+  // gentle idle sway
+  if (!playing) {
+    scene.rotation.y = Math.sin(Date.now() * 0.0006) * 0.12;
+  } else {
+    scene.rotation.y += (0 - scene.rotation.y) * 0.1;
+  }
+  renderer.render(scene, camera);
+})();
+
+/* ════════════════════════════════════════════════
+   5.  LOAD sign_animations.json
+════════════════════════════════════════════════ */
+const BASE = 'https://windscolors-crypto.github.io/arsl-model/';
+const loadingEl = document.getElementById('loading');
+const loadMsg   = document.getElementById('loading-msg');
+
+fetch(BASE + 'sign_animations.json')
+  .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(data => {
+    animDB = data;
+    loadingEl.style.display = 'none';
+    buildGrid();
+    // auto-play first available word
+    const first = Object.keys(WORDS).find(k =>
+      animDB[k] || animDB[k.toLowerCase()] ||
+      Object.keys(animDB).some(ak => ak.toLowerCase() === k.toLowerCase())
+    );
+    if (first) playSign(first);
+  })
+  .catch(err => {
+    loadMsg.textContent = '⚠️ تعذّر تحميل البيانات — تحقّق من الاتصال';
+    console.error('sign_animations.json load error:', err);
+    setTimeout(() => { loadingEl.style.display = 'none'; }, 2500);
+    buildGrid(); // still build buttons so UI isn't broken
+  });
+
+/* ════════════════════════════════════════════════
+   6.  BUILD WORD BUTTON GRID
+════════════════════════════════════════════════ */
+function buildGrid() {
+  const grid = document.getElementById('words-grid');
+  grid.innerHTML = '';
+  for (const [en, info] of Object.entries(WORDS)) {
+    const avail = animDB && (
+      animDB[en] || animDB[en.toLowerCase()] ||
+      Object.keys(animDB).some(k => k.toLowerCase() === en.toLowerCase())
+    );
+    const btn = document.createElement('button');
+    btn.className = 'wbtn' + (avail ? '' : ' unavail');
+    btn.setAttribute('data-key', en);
+    btn.innerHTML =
+      `<span class="ar">${info.ar}</span>` +
+      `<span class="en">${en.replace(/_/g,' ')}</span>`;
+    btn.addEventListener('click', () => playSign(en));
+    grid.appendChild(btn);
+  }
+}
+
+/* ════════════════════════════════════════════════
+   7.  THUNKABLE BRIDGE
+   ─────────────────────────────────────────────
+   Thunkable يستدعي:
+     WebViewer.EvaluateJavaScript("playSign('eat')")
+   أو يرسل رسالة:
+     WebViewer.PostMessage('{"word":"eat"}')
+════════════════════════════════════════════════ */
+window.addEventListener('message', e => {
+  try {
+    const d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+    if (d && d.word) { playSign(d.word); return; }
+  } catch {}
+  if (typeof e.data === 'string' && e.data.trim().length > 0) {
+    playSign(e.data.trim());
+  }
+});
+
+// URL param: text2sign.html?word=eat
+const urlWord = new URLSearchParams(location.search).get('word');
+if (urlWord) setTimeout(() => playSign(urlWord), 1800);
+
+/* ════════════════════════════════════════════════
+   8.  RESPONSIVE RESIZE
+════════════════════════════════════════════════ */
+window.addEventListener('resize', () => {
+  W = wrap.clientWidth; H = wrap.clientHeight;
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+  renderer.setSize(W, H);
+});
+</script>
+</body>
+</html>
