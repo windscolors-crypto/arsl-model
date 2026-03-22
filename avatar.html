@@ -95,7 +95,7 @@ camera.lookAt(0,1,0);
 
 scene.add(new THREE.AmbientLight(0x334466,1.5));
 const kl=new THREE.DirectionalLight(0x99ccff,1.8); kl.position.set(2,4,3); kl.castShadow=true; scene.add(kl);
-scene.add(Object.assign(new THREE.DirectionalLight(0xaa88ff,0.6),{position:new THREE.Vector3(-2,2,1)}));
+const fl=new THREE.DirectionalLight(0xaa88ff,0.6); fl.position.set(-2,2,1); scene.add(fl);
 scene.add(new THREE.GridHelper(10,20,0x1a2a4a,0x111828));
 
 window.addEventListener('resize',()=>{
