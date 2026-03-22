@@ -190,13 +190,12 @@ function applyHandPose(lms, boneTable, wristName){
   const foreArmName = isRight ? 'RightForeArm' : 'LeftForeArm';
   const foreArm = findBone(foreArmName);
   if(foreArm){
-    // موقع الرسغ بالنسبة لمركز الصورة (0.5,0.5)
-    const wx = (lms[0][0] - 0.5) * 2;   // -1 يسار → +1 يمين
-    const wy = -(lms[0][1] - 0.5) * 2;  // -1 أسفل → +1 أعلى
+    // MediaPipe مرايا — نعكس X
+    const wx = -(lms[0][0] - 0.5) * 2;
+    const wy = -(lms[0][1] - 0.5) * 2;
     const wz = -Math.abs(lms[0][2]) * 0.5;
 
-    // اليد اليمنى تمتد لليمين، اليسرى لليسار
-    const sideX = isRight ? 0.6 + wx*0.4 : -0.6 + wx*0.4;
+    const sideX = isRight ? 0.5 + wx*0.5 : -0.5 + wx*0.5;
     rotateBone(foreArm, sideX, wy*0.5, wz);
     foreArm.updateMatrixWorld(true);
   }
@@ -204,7 +203,8 @@ function applyHandPose(lms, boneTable, wristName){
   // ── 2. رسغ (Hand) ──
   const wb=findBone(wristName);
   if(wb){
-    rotateBone(wb,lms[9][0]-lms[0][0],-(lms[9][1]-lms[0][1]),-(lms[9][2]-lms[0][2]));
+    // عكس X لأن MediaPipe مرايا
+    rotateBone(wb,-(lms[9][0]-lms[0][0]),-(lms[9][1]-lms[0][1]),-(lms[9][2]-lms[0][2]));
     wb.updateMatrixWorld(true);
   }
 
@@ -212,7 +212,7 @@ function applyHandPose(lms, boneTable, wristName){
   for(const[bn,f,t] of boneTable){
     const b=findBone(bn);
     if(!b) continue;
-    rotateBone(b,lms[t][0]-lms[f][0],-(lms[t][1]-lms[f][1]),-(lms[t][2]-lms[f][2]));
+    rotateBone(b,-(lms[t][0]-lms[f][0]),-(lms[t][1]-lms[f][1]),-(lms[t][2]-lms[f][2]));
   }
 }
 
