@@ -178,6 +178,324 @@ function rotateBone(bone, dx, dy, dz){
 }
 
 function resetHand(boneTable, wristName){
+  const isRight = wristName==='RightHand';
+  const fa = findBone(isRight?'RightForeArm':'LeftForeArm');
+  if(fa){ fa.rotation.set(0,0,0); fa.updateMatrixWorld(true); }
+  const wb = findBone(wristName);
+  if(wb){ wb.quaternion.set(0,0,0,1); wb.updateMatrixWorld(true); }
+  for(const[bn] of boneTable){
+    const b=findBone(bn);
+    if(b) b.quaternion.set(0,0,0,1);
+  }
+}
+
+function applyHandPose(lms, boneTable, wristName){
+  // إذا مجموع كل النقاط = 0 → اليد فاضية
+  const sum = lms.reduce((s,l)=>s+Math.abs(l[0])+Math.abs(l[1])+Math.abs(l[2]),0);
+  if(sum < 0.01){ resetHand(boneTable, wristName); return; }
+
+  const isRight = wristName==='RightHand';
+
+  // ── 1. ساعد ──
+  const fa = findBone(isRight?'RightForeArm':'LeftForeArm');
+  if(fa){
+    // y: 0=أعلى الشاشة → رفع الذراع، 1=أسفل → تنزيل
+    const wy = lms[0][1]; // 0→1
+    // رفع/خفض: نحوّل 0→1 إلى زاوية -60°→+20°
+    const angleZ = THREE.MathUtils.lerp(
+      isRight ? -1.0 : 1.0,   // يد فوق = مرفوعة
+      isRight ?  0.3 : -0.3,  // يد تحت = منخفضة
+      wy
+    );
+    fa.rotation.set(0, 0, angleZ);
+    fa.updateMatrixWorld(true);
+  }
+
+  // ── 2. رسغ ──
+  const wb = findBone(wristName);
+  if(wb){
+    const dx = lms[9][0]-lms[0][0];
+    const dy = -(lms[9][1]-lms[0][1]);
+    const dz = -(lms[9][2]-lms[0][2]);
+    rotateBone(wb, isRight? dx:-dx, dy, dz);
+    wb.updateMatrixWorld(true);
+  }
+
+  // ── 3. أصابع ──
+  for(const[bn,f,t] of boneTable){
+    const b=findBone(bn);
+    if(!b) continue;
+    const dx = lms[t][0]-lms[f][0];
+    const dy = -(lms[t][1]-lms[f][1]);
+    const dz = -(lms[t][2]-lms[f][2]);
+    rotateBone(b, isRight? dx:-dx, dy, dz);
+  }
+}
+
+/* ══════ DECODE FRAME ══════ */
+function decodeFrame(fr){
+  const E=Array(21).fill([0,0,0]);
+  if(!fr) return{L:E,R:E};
+  const parse=(a,o)=>{const r=[];for(let i=0;i<21;i++)r.push([a[o+i*3],a[o+i*3+1],a[o+i*3+2]]);return r;};
+  if(typeof fr[0]==='number'){
+    if(fr.length>=126) return{L:parse(fr,0),R:parse(fr,63)};
+    if(fr.length>=63)  return{L:E,R:parse(fr,0)};
+  }
+  if(Array.isArray(fr[0])){
+    if(fr.length>=42) return{L:fr.slice(0,21),R:fr.slice(21,42)};
+    if(fr.length>=21) return{L:E,R:fr.slice(0,21)};
+  }
+  return{L:E,R:E};
+}
+
+/* ══════ SIGN ENGINE ══════ */
+let signData=null, playTick=null, curFrames=null, frameIdx=0;
+const pgBar=document.getElementById('pg-bar');
+const lblEl=document.getElementById('label');
+const noSign=document.getElementById('no-sign');
+
+fetch('https://windscolors-crypto.github.io/arsl-model/sign_animations.json')
+  .then(r=>{if(!r.ok)throw r.status;return r.json();})
+  .then(d=>{signData=d;dbg('✅ sign_animations: '+Object.keys(d).length+' إشارة');})
+  .catch(e=>dbg('❌ sign_animations: '+e));
+
+window.playSign=function(en){
+  noSign.style.display='none';
+  document.querySelectorAll('.wb').forEach(b=>b.classList.remove('on'));
+  const btn=document.querySelector(`.wb[data-k="${en}"]`);
+  if(btn) btn.classList.add('on');
+  lblEl.textContent=WORDS[en]||en;
+
+  if(!signData){dbg('⏳ البيانات لم تُحمَّل بعد');return;}
+  if(!currentModel){dbg('⏳ ارفعي FBX أولاً');return;}
+
+  let frames=signData[en];
+  if(!frames) for(const k of Object.keys(signData)) if(k.toLowerCase()===en.toLowerCase()){frames=signData[k];break;}
+  if(frames&&!Array.isArray(frames)&&frames.frames) frames=frames.frames;
+
+  if(!frames||!frames.length){noSign.style.display='block';dbg('⚠️ "'+en+'" غير موجودة');return;}
+  dbg('▶ '+en+' ('+frames.length+' frame)');
+
+  // ★ أوقف الـ mixer عشان ما يلغي تحريكنا اليدوي
+  if(mixer){ mixer.stopAllAction(); mixer=null; }
+
+  curFrames=frames;frameIdx=0;
+  if(playTick) clearInterval(playTick);
+  playTick=setInterval(()=>{
+    if(!currentModel) return;
+    const{L,R}=decodeFrame(curFrames[frameIdx]);
+    applyHandPose(L,L_MAP,'LeftHand');
+    applyHandPose(R,R_MAP,'RightHand');
+    pgBar.style.width=((frameIdx+1)/curFrames.length*100)+'%';
+    if(++frameIdx>=curFrames.length){frameIdx=0;pgBar.style.width='0%';}
+  },1000/15);
+};
+
+/* ══════ WORD BUTTONS ══════ */
+const panel=document.getElementById('word-panel');
+for(const[en,ar] of Object.entries(WORDS)){
+  const b=document.createElement('button');
+  b.className='wb';b.setAttribute('data-k',en);
+  b.innerHTML=`<span class="ar">${ar}</span><span class="en">${en.replace(/_/g,' ')}</span>`;
+  b.addEventListener('click',()=>window.playSign(en));
+  panel.appendChild(b);
+}
+
+/* ══════ FBX LOADER ══════ */
+let mixer=null,currentModel=null;
+const s1=document.createElement('script');s1.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js';document.head.appendChild(s1);
+const s2=document.createElement('script');s2.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js';document.head.appendChild(s2);
+
+s2.onload=()=>{
+  document.getElementById('loading').textContent='✅ جاهز — ارفعي ملف FBX';
+  document.getElementById('file-input').addEventListener('change',e=>{
+    const file=e.target.files[0];if(!file) return;
+    document.getElementById('loading').textContent='⏳ جاري التحميل...';
+    document.getElementById('loading').style.display='block';
+    const loader=new THREE.FBXLoader();
+    loader.load(URL.createObjectURL(file),fbx=>{
+      if(currentModel) scene.remove(currentModel);
+      fbx.scale.setScalar(0.022);fbx.position.set(0,-1.2,0);
+      fbx.traverse(c=>{if(c.isMesh){c.castShadow=true;c.receiveShadow=true;}});
+      scene.add(fbx);currentModel=fbx;
+      buildBoneMap(fbx);
+      if(fbx.animations&&fbx.animations.length){mixer=new THREE.AnimationMixer(fbx);mixer.clipAction(fbx.animations[0]).play();}
+      document.getElementById('loading').style.display='none';
+      document.getElementById('upload-btn').textContent='🔄 غيّري الملف';
+      dbg('✅ FBX جاهز — اضغطي كلمة');
+      // افتح التشخيص تلقائياً
+      document.getElementById('dbg').style.display='block';
+    },xhr=>{document.getElementById('loading').textContent=`⏳ ${Math.round(xhr.loaded/xhr.total*100)}%`;},
+    err=>{document.getElementById('loading').textContent='❌ خطأ';dbg('❌ '+err);});
+  });
+};
+
+/* ══════ ORBIT ══════ */
+let drag=false,px=0,ang=0;
+renderer.domElement.addEventListener('mousedown',e=>{drag=true;px=e.clientX;});
+renderer.domElement.addEventListener('mousemove',e=>{if(!drag||!currentModel)return;ang+=(e.clientX-px)*0.01;currentModel.rotation.y=ang;px=e.clientX;});
+renderer.domElement.addEventListener('mouseup',()=>drag=false);
+renderer.domElement.addEventListener('touchstart',e=>{drag=true;px=e.touches[0].clientX;});
+renderer.domElement.addEventListener('touchmove',e=>{if(!drag||!currentModel)return;ang+=(e.touches[0].clientX-px)*0.01;currentModel.rotation.y=ang;px=e.touches[0].clientX;});
+renderer.domElement.addEventListener('touchend',()=>drag=false);
+
+/* ══════ THUNKABLE ══════ */
+window.addEventListener('message',e=>{
+  try{const d=typeof e.data==='string'?JSON.parse(e.data):e.data;if(d&&d.word){window.playSign(d.word);return;}}catch{}
+  if(typeof e.data==='string'&&e.data.trim()) window.playSign(e.data.trim());
+});
+const uw=new URLSearchParams(location.search).get('word');
+if(uw) setTimeout(()=>window.playSign(uw),2000);
+
+/* ══════ RENDER ══════ */
+const clock=new THREE.Clock();
+(function loop(){requestAnimationFrame(loop);if(mixer)mixer.update(clock.getDelta());renderer.render(scene,camera);})();
+</script>
+</body>
+</html>  }
+  #dbg {
+    display: none; position: fixed; top: 50px; left: 8px; right: 8px;
+    background: #0d1117ee; border: 1px solid #30363d; border-radius: 8px;
+    padding: 8px; color: #8b949e; font-size: 11px; line-height: 1.6;
+    max-height: 130px; overflow-y: auto; z-index: 9;
+  }
+  #no-sign {
+    display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    background: #0d0d1acc; border: 1px solid #30363d; border-radius: 12px;
+    padding: 14px 22px; color: #8b949e; font-size: 13px; text-align: center;
+  }
+  #word-panel {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    display: flex; gap: 5px; overflow-x: auto; padding: 6px 8px;
+    background: #0d111799; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  #word-panel::-webkit-scrollbar { display: none; }
+  .wb {
+    flex-shrink: 0; background: #161b22; border: 1px solid #30363d;
+    border-radius: 8px; padding: 5px 9px; color: #e6edf3; cursor: pointer; min-width: 48px; text-align: center;
+  }
+  .wb .ar { display: block; font-size: 12px; font-weight: 600; }
+  .wb .en { display: block; font-size: 9px; color: #8b949e; }
+  .wb.on  { background: #1a3a55; border-color: #7eb8f7; color: #7eb8f7; }
+</style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+<div id="loading">📂 ارفعي ملف FBX من Mixamo</div>
+<button id="upload-btn" onclick="document.getElementById('file-input').click()">📂 ارفعي ملف FBX</button>
+<input type="file" id="file-input" accept=".fbx">
+<button id="dbg-toggle" onclick="document.getElementById('dbg').style.display=document.getElementById('dbg').style.display==='none'?'block':'none'">🔍 تشخيص</button>
+<div id="dbg"></div>
+<div id="label">Shell Voice</div>
+<div id="pg-wrap"><div id="pg-bar"></div></div>
+<div id="no-sign">⚠️ الإشارة غير موجودة</div>
+<div id="word-panel"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+
+/* ══════ SCENE ══════ */
+const container = document.getElementById('canvas-container');
+const renderer  = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+container.appendChild(renderer.domElement);
+
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0a12);
+scene.fog = new THREE.Fog(0x0a0a12,10,30);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 100);
+camera.position.set(0,1.2,3);
+camera.lookAt(0,0.8,0);
+
+scene.add(new THREE.AmbientLight(0x334466,1.5));
+const kl=new THREE.DirectionalLight(0x99ccff,1.8); kl.position.set(2,4,3); kl.castShadow=true; scene.add(kl);
+const fl=new THREE.DirectionalLight(0xaa88ff,0.6); fl.position.set(-2,2,1); scene.add(fl);
+scene.add(new THREE.GridHelper(10,20,0x1a2a4a,0x111828));
+
+window.addEventListener('resize',()=>{
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
+
+/* ══════ DEBUG ══════ */
+function dbg(msg){ const d=document.getElementById('dbg'); d.innerHTML+=msg+'<br>'; d.scrollTop=9999; console.log(msg); }
+
+/* ══════ WORDS ══════ */
+const WORDS={'eat':'أكل','drink':'شرب','sleep':'نوم','wakeup':'استيقاظ','sit':'جلوس','stand':'وقوف','love':'حب','take':'أخذ','help':'مساعدة','think':'تفكير','choose':'اختيار','father':'أب','mother':'أم','family':'عائلة','brother':'أخ','grandfather':'جد','grandmother':'جدة','hearing_disability':'إعاقة سمعية','health':'صحة','silence':'صمت','0':'صفر','1':'واحد','2':'اثنان','3':'ثلاثة','4':'أربعة'};
+
+/* ══════ BONE MAP ══════ */
+let boneMap={};
+
+function buildBoneMap(fbx){
+  boneMap={};
+  const handList=[];
+  fbx.traverse(obj=>{
+    if(!obj.isBone&&obj.type!=='Bone') return;
+    boneMap[obj.name]=obj;
+    const clean=obj.name.replace(/^mixamorig[A-Za-z0-9]*:/i,'');
+    if(!boneMap[clean]) boneMap[clean]=obj;
+    if(/hand|finger|thumb|index|middle|ring|pinky/i.test(obj.name)) handList.push(obj.name);
+  });
+  dbg('✋ '+handList.length+' عظمة يد:');
+  handList.slice(0,12).forEach(n=>dbg('  '+n));
+  if(handList.length===0) dbg('⚠️ لا توجد عظام يدين — تأكدي إن FBX من Mixamo');
+}
+
+function findBone(...names){
+  for(const n of names){
+    if(boneMap[n]) return boneMap[n];
+    if(boneMap['mixamorig:'+n])         return boneMap['mixamorig:'+n];
+    if(boneMap['mixamorig1:'+n])        return boneMap['mixamorig1:'+n];
+    if(boneMap['mixamorig1'+n])         return boneMap['mixamorig1'+n];
+    if(boneMap['mixamorigHumanoid:'+n]) return boneMap['mixamorigHumanoid:'+n];
+  }
+  return null;
+}
+
+/* ══════ FINGER BONE TABLE ══════ */
+const R_MAP=[
+  ['RightHandThumb1',1,2],['RightHandThumb2',2,3],['RightHandThumb3',3,4],
+  ['RightHandIndex1',5,6],['RightHandIndex2',6,7],['RightHandIndex3',7,8],
+  ['RightHandMiddle1',9,10],['RightHandMiddle2',10,11],['RightHandMiddle3',11,12],
+  ['RightHandRing1',13,14],['RightHandRing2',14,15],['RightHandRing3',15,16],
+  ['RightHandPinky1',17,18],['RightHandPinky2',18,19],['RightHandPinky3',19,20],
+];
+const L_MAP=[
+  ['LeftHandThumb1',1,2],['LeftHandThumb2',2,3],['LeftHandThumb3',3,4],
+  ['LeftHandIndex1',5,6],['LeftHandIndex2',6,7],['LeftHandIndex3',7,8],
+  ['LeftHandMiddle1',9,10],['LeftHandMiddle2',10,11],['LeftHandMiddle3',11,12],
+  ['LeftHandRing1',13,14],['LeftHandRing2',14,15],['LeftHandRing3',15,16],
+  ['LeftHandPinky1',17,18],['LeftHandPinky2',18,19],['LeftHandPinky3',19,20],
+];
+
+/* ══════ ROTATE BONE ══════ */
+const _inv=new THREE.Matrix4();
+const _v=new THREE.Vector3();
+const _q=new THREE.Quaternion();
+const _up=new THREE.Vector3(0,1,0);
+const _upX=new THREE.Vector3(1,0,0);
+
+function rotateBone(bone, dx, dy, dz){
+  const len=Math.sqrt(dx*dx+dy*dy+dz*dz);
+  if(len<0.0001) return;
+  _v.set(dx/len,dy/len,dz/len);
+  bone.parent.updateMatrixWorld(true);
+  _inv.copy(bone.parent.matrixWorld).invert();
+  _v.transformDirection(_inv).normalize();
+  if(_v.length()<0.001) return;
+  // أيدي وذراعين محورها +X في Mixamo، أصابع محورها +Y
+  const isArm=/hand|arm/i.test(bone.name);
+  const restAxis = isArm ? _upX : _up;
+  _q.setFromUnitVectors(restAxis,_v);
+  bone.quaternion.slerp(_q,0.3);
+}
+
+function resetHand(boneTable, wristName){
   // يرجع اليد لوضع الراحة لما تكون فاضية
   const wb = findBone(wristName);
   if(wb) wb.quaternion.slerp(new THREE.Quaternion(), 0.15);
