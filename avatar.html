@@ -131,7 +131,9 @@ function buildBoneMap(fbx){
 function findBone(...names){
   for(const n of names){
     if(boneMap[n]) return boneMap[n];
-    if(boneMap['mixamorig:'+n]) return boneMap['mixamorig:'+n];
+    if(boneMap['mixamorig:'+n])         return boneMap['mixamorig:'+n];
+    if(boneMap['mixamorig1:'+n])        return boneMap['mixamorig1:'+n];
+    if(boneMap['mixamorig1'+n])         return boneMap['mixamorig1'+n];
     if(boneMap['mixamorigHumanoid:'+n]) return boneMap['mixamorigHumanoid:'+n];
   }
   return null;
