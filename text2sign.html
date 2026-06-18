@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0a1a">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Text2Sign – Shell Voice</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="lib/three.r128.min.js"></script>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 
@@ -437,7 +439,7 @@ window.playSign = function(rawWord) {
 /* ════════════════════════════════════════════════
    5.  LOAD sign_animations.json
 ════════════════════════════════════════════════ */
-const BASE = 'https://windscolors-crypto.github.io/arsl-model/';
+const BASE = '';
 const loadingEl = document.getElementById('loading');
 const loadMsg   = document.getElementById('loading-msg');
 
@@ -515,5 +517,6 @@ window.addEventListener('resize', () => {
   renderer.setSize(W, H);
 });
 </script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(e=>console.warn("SW reg failed",e));}</script>
 </body>
 </html>

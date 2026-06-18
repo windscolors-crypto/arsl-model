@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0a1a">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Shell Voice — Avatar</title>
@@ -74,7 +76,7 @@
 <div id="no-sign">⚠️ الإشارة غير موجودة</div>
 <div id="word-panel"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="lib/three.r128.min.js"></script>
 <script>
 
 /* ══════ SCENE ══════ */
@@ -254,7 +256,7 @@ const pgBar=document.getElementById('pg-bar');
 const lblEl=document.getElementById('label');
 const noSign=document.getElementById('no-sign');
 
-fetch('https://windscolors-crypto.github.io/arsl-model/sign_animations.json')
+fetch('sign_animations.json')
   .then(r=>{if(!r.ok)throw r.status;return r.json();})
   .then(d=>{signData=d;dbg('✅ sign_animations: '+Object.keys(d).length+' إشارة');})
   .catch(e=>dbg('❌ sign_animations: '+e));
@@ -304,13 +306,13 @@ for(const[en,ar] of Object.entries(WORDS)){
 /* ══════ FBX LOADER ══════ */
 let mixer=null,currentModel=null;
 const s1=document.createElement('script');
-s1.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+s1.src='lib/three.r128.min.js';
 // Three.js محمّل بالفعل — نحمّل FBXLoader فقط
 const s2=document.createElement('script');
-s2.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js';
+s2.src='lib/three-examples/fflate.min.js';
 document.head.appendChild(s2);
 const s3=document.createElement('script');
-s3.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js';
+s3.src='lib/three-examples/FBXLoader.js';
 s2.onload=()=>document.head.appendChild(s3);
 
 s3.onload=()=>{
@@ -358,5 +360,6 @@ if(uw) setTimeout(()=>window.playSign(uw),2000);
 const clock=new THREE.Clock();
 (function loop(){requestAnimationFrame(loop);if(mixer)mixer.update(clock.getDelta());renderer.render(scene,camera);})();
 </script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(e=>console.warn("SW reg failed",e));}</script>
 </body>
 </html>

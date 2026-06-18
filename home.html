@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0a1a">
+<link rel="manifest" href="manifest.json">
+<title>Shell Voice — صدفة الصوت</title>
+<style>
+@font-face{font-family:'Cairo';font-style:normal;font-weight:400 800;src:url('lib/fonts/cairo_1.woff2') format('woff2');unicode-range:U+0600-06FF,U+0750-077F,U+FB50-FDFF,U+FE70-FEFC;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Cairo',sans-serif;background:#0a0a1a;color:#fff;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;overflow-x:hidden;}
+.logo{font-size:3em;margin-bottom:4px;}
+h1{color:#00d4aa;font-size:1.8em;margin-bottom:4px;}
+.sub{color:#888;font-size:.95em;margin-bottom:6px;text-align:center;}
+.flag{height:5px;width:160px;border-radius:3px;margin-bottom:22px;background:linear-gradient(90deg,#000 0 25%,#fff 25% 50%,#007a3d 50% 75%,#ce1126 75% 100%);}
+.grid{display:flex;flex-direction:column;gap:14px;width:100%;max-width:380px;}
+a.card{display:flex;align-items:center;gap:14px;text-decoration:none;background:linear-gradient(135deg,#1a1a3e,#0d0d2b);border:2px solid #222;border-radius:18px;padding:18px 20px;color:#fff;transition:.2s;}
+a.card:active{transform:scale(.97);}
+a.card .ic{font-size:2em;}
+a.card .t{font-size:1.2em;font-weight:700;color:#00d4aa;}
+a.card .d{font-size:.8em;color:#999;margin-top:2px;}
+.card.cam{border-color:#00d4aa44;}
+.card.av{border-color:#4488ff44;}
+.foot{margin-top:24px;color:#444;font-size:.75em;text-align:center;}
+.offline{margin-top:8px;font-size:.78em;color:#00d4aa;}
+</style>
+</head>
+<body>
+<div class="logo">🐚</div>
+<h1>Shell Voice</h1>
+<div class="sub">صدفة الصوت — تطبيق لغة الإشارة العربية</div>
+<div class="flag"></div>
+
+<div class="grid">
+  <a class="card cam" href="index.html">
+    <div class="ic">🔤</div>
+    <div><div class="t">تعرّف الحروف</div><div class="d">إشارة → نص — بالكاميرا (٣٢ حرف)</div></div>
+  </a>
+  <a class="card cam" href="words.html">
+    <div class="ic">💬</div>
+    <div><div class="t">تعرّف الكلمات</div><div class="d">إشارة → نص — بالكاميرا (٢٥ كلمة)</div></div>
+  </a>
+  <a class="card av" href="text2sign.html">
+    <div class="ic">🤟</div>
+    <div><div class="t">نص → إشارة</div><div class="d">عرض الإشارة بشخصية ثلاثية الأبعاد</div></div>
+  </a>
+  <a class="card av" href="avatar.html">
+    <div class="ic">🧍</div>
+    <div><div class="t">الأفيتار الكامل</div><div class="d">شخصية FBX كاملة (ارفعي ملف Mixamo)</div></div>
+  </a>
+</div>
+
+<div class="offline" id="offState">⏳ تجهيز العمل دون إنترنت…</div>
+<div class="foot">معرض علماء الغد 2026 · T566</div>
+
+<script>
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js").then(reg=>{
+    const set=t=>document.getElementById("offState").textContent=t;
+    if(navigator.serviceWorker.controller) set("✅ جاهز للعمل دون إنترنت");
+    else set("⏳ يتم تحميل الملفات للعمل دون إنترنت…");
+    navigator.serviceWorker.addEventListener("controllerchange",()=>set("✅ جاهز للعمل دون إنترنت"));
+  }).catch(e=>{document.getElementById("offState").textContent="⚠️ تعذّر تفعيل وضع دون إنترنت";console.warn(e);});
+}
+</script>
+</body>
+</html>

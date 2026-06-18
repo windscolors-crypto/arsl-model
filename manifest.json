@@ -1,0 +1,14 @@
+{
+  "name": "Shell Voice — صدفة الصوت",
+  "short_name": "Shell Voice",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "home.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a1a",
+  "theme_color": "#0a0a1a",
+  "description": "تطبيق التعرّف على لغة الإشارة العربية وترجمتها — يعمل دون إنترنت بعد التحميل الأول",
+  "icons": []
+}

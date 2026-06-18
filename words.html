@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0a1a">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Shell Voice - ترجمة الكلمات</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
+        @import url('lib/fonts/cairo.css');
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Cairo', sans-serif;
@@ -194,8 +196,8 @@
     <div class="status" id="statusBar">Shell Voice v1.0</div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.min.js"></script>
+<script src="lib/tf-4.10.0.min.js"></script>
+<script src="lib/hands.min.js"></script>
 
 <script>
 // ========== CONFIG ==========
@@ -298,7 +300,7 @@ async function loadModel() {
 async function setupHands() {
     loadMsg.textContent = 'تحميل MediaPipe...';
     hands = new Hands({
-        locateFile: f => 'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/' + f
+        locateFile: f => 'lib/mediapipe/' + f
     });
     hands.setOptions({ maxNumHands:2, modelComplexity:1, minDetectionConfidence:0.5, minTrackingConfidence:0.5 });
     hands.onResults(onHands);
@@ -512,5 +514,6 @@ async function init() {
 }
 init();
 </script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(e=>console.warn("SW reg failed",e));}</script>
 </body>
 </html>
