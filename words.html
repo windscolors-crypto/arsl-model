@@ -196,7 +196,7 @@
     <div class="status" id="statusBar">Shell Voice v1.0</div>
 </div>
 
-<script src="lib/tf-4.10.0.min.js"></script>
+<script src="lib/tf-4.22.0.min.js"></script>
 <script src="lib/hands.min.js"></script>
 
 <script>
@@ -253,44 +253,29 @@ async function loadModel() {
         return false;
     }
 
-    // 2. Load model - intercept fetch to fix JSON on the fly
+    // 2. Load model - fetch weights directly (robust: no fetch interception,
+    //    avoids base-URL/path issues; works fully offline from cache)
     loadMsg.textContent = 'تحميل نموذج الكلمات...';
-    
-    const originalFetch = window.fetch;
-    
-    window.fetch = async function(url, options) {
-        const response = await originalFetch.call(window, url, options);
-        
-        // Intercept word_model.json to fix batch_shape
-        if (typeof url === 'string' && url.includes('word_model.json')) {
-            const json = await response.json();
-            console.log('🔧 Intercepted word_model.json, fixing...');
-            
-            if (json.modelTopology) {
-                fixBatchShape(json.modelTopology);
-            }
-            
-            // Return fixed JSON as new Response
-            return new Response(JSON.stringify(json), {
-                status: 200,
-                statusText: 'OK',
-                headers: { 'Content-Type': 'application/json' }
-            });
-        }
-        
-        return response;
-    };
-
     try {
-        model = await tf.loadLayersModel(MODEL_URL);
+        const wm = await (await fetch(MODEL_URL)).json();
+        if (wm.modelTopology) fixBatchShape(wm.modelTopology);
+        const specs = wm.weightsManifest.reduce((a, g) => a.concat(g.weights), []);
+        const paths = wm.weightsManifest.reduce((a, g) => a.concat(g.paths), []);
+        const bufs = await Promise.all(paths.map(p => fetch(p).then(r => r.arrayBuffer())));
+        let total = 0; bufs.forEach(b => total += b.byteLength);
+        const merged = new Uint8Array(total); let off = 0;
+        for (const b of bufs) { merged.set(new Uint8Array(b), off); off += b.byteLength; }
+        const handler = { load: async () => ({
+            modelTopology: wm.modelTopology,
+            weightSpecs: specs,
+            weightData: merged.buffer,
+            format: wm.format, generatedBy: wm.generatedBy, convertedBy: wm.convertedBy
+        }) };
+        model = await tf.loadLayersModel(handler);
         console.log('✅ Model loaded! Input shape:', model.inputs[0].shape);
-        
-        // Restore original fetch
-        window.fetch = originalFetch;
         return true;
     } catch(e) {
         console.error('❌ Model load failed:', e);
-        window.fetch = originalFetch;
         loadMsg.textContent = '❌ فشل تحميل النموذج: ' + e.message;
         return false;
     }
