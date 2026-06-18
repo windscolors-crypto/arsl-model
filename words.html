@@ -332,12 +332,12 @@ function onHands(results) {
             bar.style.width = (autoFrames.length/NUM_FRAMES*100)+'%';
             tag.style.display='block'; tag.textContent='⏺ '+autoFrames.length+'/'+NUM_FRAMES;
             if (autoFrames.length>=NUM_FRAMES) {
-                doPredict(autoFrames); autoFrames=[];
+                doPredict(autoFrames, true); autoFrames=[];
                 tag.style.display='none'; bar.style.width='0%';
             }
         } else if (noHand>10 && autoFrames.length>=NUM_FRAMES/2) {
             while(autoFrames.length<NUM_FRAMES) autoFrames.push(new Array(TOTAL_VALUES).fill(0));
-            doPredict(autoFrames); autoFrames=[];
+            doPredict(autoFrames, true); autoFrames=[];
             tag.style.display='none'; bar.style.width='0%';
         } else if (noHand>20) {
             autoFrames=[]; bar.style.width='0%'; tag.style.display='none';
@@ -346,39 +346,79 @@ function onHands(results) {
 }
 
 // ========== PREDICT ==========
-async function doPredict(buf) {
+// عتبات الرفض: أفضل "لا أعرف" من كلمة غلط
+const CONF_MIN   = 0.80;   // أقل ثقة مقبولة
+const MOTION_MIN = 0.50;   // أقل حركة فعلية مطلوبة عبر الإطارات (تُعاير حيّاً)
+let lastAutoWord = '';
+
+// مقدار حركة اليد عبر تسلسل الإطارات (L1 بين الإطارات المتتالية التي فيها يد)
+function frameMotion(frames){
+    const present = frames.filter(fr => fr.some(v => v !== 0));
+    if (present.length < 2) return 0;
+    let total = 0;
+    for (let i=1;i<present.length;i++){
+        const a=present[i], b=present[i-1]; let d=0;
+        for (let j=0;j<a.length;j++) d += Math.abs(a[j]-b[j]);
+        total += d;
+    }
+    return total/(present.length-1);
+}
+
+function showNoSign(msg){
+    const h=document.getElementById('resHolder'); h.style.display='block'; h.textContent=msg;
+    document.getElementById('resWord').style.display='none';
+    document.getElementById('resEng').style.display='none';
+    document.getElementById('resConf').style.display='none';
+    document.getElementById('resCard').classList.remove('ok');
+    curResult='';
+}
+
+async function doPredict(buf, auto=false) {
     if (!model||buf.length===0) return;
     try {
         let f=buf.slice(0,NUM_FRAMES);
         while(f.length<NUM_FRAMES) f.push(new Array(TOTAL_VALUES).fill(0));
 
+        // بوابة 1: حركة فعلية. يد ثابتة / لا حركة => لا إشارة (بدل هلوسة كلمة)
+        const motion = frameMotion(f);
+        if (motion < MOTION_MIN) {
+            console.log('motion', motion.toFixed(3), '-> لا إشارة');
+            showNoSign('لا توجد إشارة واضحة 🤚'); lastAutoWord=''; return;
+        }
+
         const inp=tf.tensor3d([f],[1,NUM_FRAMES,TOTAL_VALUES]);
         const pred=model.predict(inp);
         const probs=await pred.data();
+        inp.dispose(); pred.dispose();
 
         let mi=0,mp=0;
         for(let i=0;i<probs.length;i++) if(probs[i]>mp){mp=probs[i];mi=i;}
-
         const eng=classNames[mi], conf=mp, ar=ARABIC_MAP[eng]||eng;
         const pct=(conf*100).toFixed(1);
+        console.log('motion', motion.toFixed(3), '| word', eng, '| conf', pct+'%');
 
+        // بوابة 2: ثقة منخفضة => "غير واضح" بدل كلمة غلط
+        if (conf < CONF_MIN) {
+            showNoSign('غير واضح، أعيدي الإشارة ↺'); lastAutoWord=''; return;
+        }
+
+        // مقبولة: اعرض الكلمة
         document.getElementById('resHolder').style.display='none';
-        const w=document.getElementById('resWord'); w.style.display='block'; w.textContent=ar;
+        const w=document.getElementById('resWord'); w.style.display='block'; w.textContent=ar; w.style.color='#00d4aa';
         const e2=document.getElementById('resEng'); e2.style.display='block'; e2.textContent=eng;
         document.getElementById('resConf').style.display='block';
         document.getElementById('confTxt').textContent='الثقة: '+pct+'%';
         const cb=document.getElementById('confBar'); cb.style.width=pct+'%';
+        cb.style.background = conf>=0.9 ? 'linear-gradient(90deg,#00d4aa,#00ff88)' : 'linear-gradient(90deg,#ffaa00,#ffcc00)';
+        document.getElementById('resCard').classList.add('ok');
+        curResult=ar;
 
-        if(conf>=0.55) {
-            curResult=ar; w.style.color='#00d4aa';
-            document.getElementById('resCard').classList.add('ok');
-            cb.style.background=conf>=0.8?'linear-gradient(90deg,#00d4aa,#00ff88)':'linear-gradient(90deg,#ffaa00,#ffcc00)';
-        } else {
-            w.style.color='#ff8800';
-            document.getElementById('resCard').classList.remove('ok');
-            cb.style.background='linear-gradient(90deg,#ff4444,#ff6666)';
+        // إضافة تلقائية للجملة بالوضع التلقائي (بدون تكرار نفس الكلمة)
+        if (auto && ar !== lastAutoWord) {
+            sentence += (sentence && !sentence.endsWith(' ') ? ' ' : '') + ar;
+            document.getElementById('sentBox').textContent = sentence;
+            lastAutoWord = ar;
         }
-        inp.dispose(); pred.dispose();
     } catch(err) {
         console.error('Predict err:', err);
         document.getElementById('statusBar').textContent='❌ '+err.message;

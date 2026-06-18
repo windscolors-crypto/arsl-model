@@ -1,5 +1,5 @@
 /* Shell Voice offline service worker */
-const CACHE='shellvoice-v3';
+const CACHE='shellvoice-v4';
 const ASSETS=["./", "home.html", "avatar.html", "class_names.json", "group1-shard1of1.bin", "group1-shard1of2.bin", "group1-shard2of2.bin", "index.html", "lib/fonts/cairo.css", "lib/fonts/cairo_1.woff2", "lib/fonts/cairo_2.woff2", "lib/fonts/cairo_3.woff2", "lib/hands.min.js", "lib/mediapipe/hand_landmark_full.tflite", "lib/mediapipe/hand_landmark_lite.tflite", "lib/mediapipe/hands.binarypb", "lib/mediapipe/hands.js", "lib/mediapipe/hands_solution_packed_assets.data", "lib/mediapipe/hands_solution_packed_assets_loader.js", "lib/mediapipe/hands_solution_simd_wasm_bin.js", "lib/mediapipe/hands_solution_simd_wasm_bin.wasm", "lib/mediapipe/hands_solution_wasm_bin.js", "lib/mediapipe/hands_solution_wasm_bin.wasm", "lib/tf-4.10.0.min.js", "lib/tf-4.22.0.min.js", "lib/three-examples/FBXLoader.js", "lib/three-examples/fflate.min.js", "lib/three.r128.min.js", "model.json", "sign_animations.json", "text2sign.html", "word_classes.json", "word_model.json", "words.html"];
 
 self.addEventListener('install',e=>{
