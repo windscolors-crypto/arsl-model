@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#bcd6e8">
+<title>صوت الصدفة — الخدمات</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,"Segoe UI",Tahoma,sans-serif;min-height:100vh;
+       display:flex;flex-direction:column;align-items:center;color:#0a2342;
+       padding:0 20px 30px;text-align:center;
+       background:
+         radial-gradient(circle at 20% 12%, rgba(255,255,255,.55), transparent 40%),
+         radial-gradient(circle at 85% 80%, rgba(255,255,255,.35), transparent 45%),
+         linear-gradient(165deg,#d7e9f3 0%,#bcd6e8 45%,#9cc3dd 100%);}
+  .top{margin-top:28px;background:rgba(255,255,255,.55);border:3px solid #c9a227;
+       border-radius:20px;padding:12px 26px}
+  .top .b{font-family:"Snell Roundhand","Brush Script MT",cursive;font-size:1.6rem;color:#ce1126}
+  .top .a{font-size:1.3rem;font-weight:800}
+  .greet{margin:18px 0 4px;font-size:1.15rem;font-weight:700;color:#0a2342}
+  .sub{font-size:.95rem;color:#3a5a78;margin-bottom:14px}
+  .menu{width:100%;max-width:440px;display:flex;flex-direction:column;gap:15px}
+  a.btn{display:flex;align-items:center;gap:16px;justify-content:flex-start;
+        padding:18px 20px;border-radius:22px;text-decoration:none;
+        background:linear-gradient(180deg,#efe6b8,#ddcf8f);border:2px solid #c9a227;
+        color:#0a2342;font-size:1.25rem;font-weight:800;
+        box-shadow:0 5px 14px rgba(28,46,88,.18);transition:transform .12s,filter .12s}
+  a.btn:active{transform:scale(.97);filter:brightness(1.05)}
+  a.btn .ic{font-size:2.1rem;width:46px;text-align:center}
+  a.btn small{display:block;font-size:.82rem;font-weight:600;color:#3a4a72;margin-top:2px}
+  a.translate{background:linear-gradient(180deg,#f3cdd2,#e79aa4);border-color:#ce1126}
+  a.learn{background:linear-gradient(180deg,#bfe6cf,#8fcaa6);border-color:#007a3d}
+  .foot{margin-top:auto;padding-top:24px;color:#3a5a78;font-size:.8rem}
+</style>
+</head>
+<body>
+  <div class="top"><div class="b">Shell Voice</div><div class="a">صوت الصدفة</div></div>
+
+  <div class="greet" id="greet">اختر الخدمة</div>
+  <div class="sub">choose the theme to talk with</div>
+
+  <nav class="menu">
+    <a class="btn translate" href="avatar_vrm.html"><span class="ic">📝</span><span>ترجمة<small>اكتب جملة → الأفيتار يأشّرها</small></span></a>
+    <a class="btn learn" href="learn.html"><span class="ic">📚</span><span>تعلّم مع الصدفة<small>تعلّم الكلمة بلغة الإشارة</small></span></a>
+    <a class="btn" href="letters.html"><span class="ic">🔤</span><span>تعرّف الحروف<small>بالكاميرا</small></span></a>
+    <a class="btn" href="words.html"><span class="ic">✋</span><span>تعرّف الكلمات<small>بالكاميرا</small></span></a>
+  </nav>
+
+  <div class="foot">معرض علماء الغد 2026 · T566</div>
+
+  <script>
+    try{var n=localStorage.getItem('sv_name'); if(n) document.getElementById('greet').textContent='أهلاً '+n+' 👋 — اختر الخدمة';}catch(e){}
+  </script>
+</body>
+</html>
