@@ -1,0 +1,98 @@
+name: Build Android APK
+
+# يشتغل يدوياً من تبويب Actions، أو تلقائياً عند أي تعديل
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Java (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Prepare web assets (www)
+        run: |
+          mkdir -p www
+          rsync -a \
+            --exclude 'www' \
+            --exclude 'node_modules' \
+            --exclude 'android' \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude 'package.json' \
+            --exclude 'package-lock.json' \
+            --exclude 'capacitor.config.json' \
+            ./ www/
+          # التطبيق يفتح القائمة الرئيسية home.html
+          if [ -f www/home.html ]; then cp www/home.html www/index.html; fi
+          echo "محتويات www:" && ls www | head -40
+
+      - name: Install Capacitor
+        run: npm install
+
+      - name: Add Android platform
+        run: npx cap add android
+
+      - name: Enable camera permission (for offline recognition)
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          # 1) صلاحية الكاميرا قبل وسم <application>
+          sed -i 's#<application#<uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n\n    <application#' "$MANIFEST"
+          echo "--- CAMERA في الـ Manifest ---"; grep -n "CAMERA" "$MANIFEST"
+          # 2) اطلب إذن الكاميرا عند فتح التطبيق (MainActivity)
+          F=android/app/src/main/java/com/shellvoice/app/MainActivity.java
+          mkdir -p "$(dirname "$F")"
+          {
+            echo 'package com.shellvoice.app;'
+            echo ''
+            echo 'import android.Manifest;'
+            echo 'import android.content.pm.PackageManager;'
+            echo 'import android.os.Bundle;'
+            echo 'import androidx.core.app.ActivityCompat;'
+            echo 'import androidx.core.content.ContextCompat;'
+            echo 'import com.getcapacitor.BridgeActivity;'
+            echo ''
+            echo 'public class MainActivity extends BridgeActivity {'
+            echo '  @Override'
+            echo '  public void onCreate(Bundle savedInstanceState) {'
+            echo '    super.onCreate(savedInstanceState);'
+            echo '    if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {'
+            echo '      ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 1001);'
+            echo '    }'
+            echo '  }'
+            echo '}'
+          } > "$F"
+          echo "--- MainActivity.java ---"; cat "$F"
+
+      - name: Sync web assets to Android
+        run: npx cap sync android
+
+      - name: Build debug APK
+        run: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShellVoice-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
