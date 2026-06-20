@@ -3,51 +3,50 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#bcd6e8">
+<meta name="theme-color" content="#bcd4e6">
 <title>صوت الصدفة — أهلاً</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
   body{font-family:-apple-system,"Segoe UI",Tahoma,sans-serif;min-height:100vh;
-       display:flex;flex-direction:column;align-items:center;justify-content:center;
-       color:#0a2342;padding:30px 22px;text-align:center;
-       background:
-         radial-gradient(circle at 18% 14%, rgba(255,255,255,.55), transparent 42%),
-         radial-gradient(circle at 85% 82%, rgba(255,255,255,.35), transparent 45%),
-         linear-gradient(165deg,#d7e9f3 0%,#bcd6e8 45%,#9cc3dd 100%);}
-  .frame{background:rgba(255,255,255,.55);border:3px solid #c9a227;border-radius:26px;
-         padding:24px 30px 20px;box-shadow:0 8px 22px rgba(28,46,88,.20)}
-  .shell{font-size:3rem;line-height:1}
-  .wel{font-size:1rem;letter-spacing:3px;color:#3a5a78;margin-top:4px}
-  .brand{font-family:"Snell Roundhand","Brush Script MT",cursive;font-size:2.6rem;color:#ce1126;margin-top:-2px}
-  .ar{font-size:1.7rem;font-weight:800;color:#0a2342}
-  .flag{height:7px;width:150px;border-radius:7px;margin:14px auto 0;
-        background:linear-gradient(90deg,#ce1126 0 33%,#fff 33% 66%,#007a3d 66% 100%)}
-  .field{margin-top:30px;width:100%;max-width:360px}
-  .field label{display:block;font-weight:700;margin-bottom:8px;color:#0a2342}
-  input{width:100%;padding:14px 16px;border-radius:16px;border:2px solid #9bb6cc;
-        font-size:1.05rem;text-align:center;background:rgba(255,255,255,.9)}
-  .start{margin-top:20px;width:100%;max-width:360px;padding:18px;border:none;
-         border-radius:20px;font-size:1.3rem;font-weight:800;color:#0a2342;cursor:pointer;
-         background:linear-gradient(180deg,#efe6b8,#ddcf8f);border:2px solid #c9a227;
-         box-shadow:0 5px 14px rgba(28,46,88,.18)}
+       display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+       padding:0 22px 30px;text-align:center;position:relative;color:#fff}
+  .bg{position:fixed;inset:0;z-index:-1;
+    background:
+      radial-gradient(circle at 50% 100%, transparent 23%, #9dc0db 24% 33%, transparent 34%) 0 0/72px 36px,
+      radial-gradient(circle at 50% 100%, transparent 23%, #b3d0e6 24% 33%, transparent 34%) 36px 18px/72px 36px,
+      linear-gradient(180deg,#dbeaf4,#c3dbec);}
+  .frame{margin-top:64px;background:rgba(255,252,235,.28);
+         border:6px solid #d9c463;border-radius:16px;padding:18px 26px;
+         box-shadow:0 6px 18px rgba(20,40,70,.22)}
+  .frame .w{font:italic 700 1.5rem/1 Georgia,"Times New Roman",serif;letter-spacing:1px}
+  .frame .s{font:italic 800 2.2rem/1.1 Georgia,"Times New Roman",serif;margin-top:6px;
+            text-shadow:0 2px 6px rgba(20,40,70,.3)}
+  .ar{margin-top:18px;font-size:1.45rem;font-weight:800;color:#fff;text-shadow:0 2px 6px rgba(20,40,70,.35)}
+  .enter{margin-top:54px;font-size:1.35rem;font-weight:700;text-shadow:0 2px 6px rgba(20,40,70,.3)}
+  input{margin-top:14px;width:100%;max-width:330px;padding:15px 18px;border-radius:14px;border:none;
+        font-size:1.05rem;background:rgba(255,255,255,.92);color:#234;text-align:center}
+  input::placeholder{color:#8aa}
+  .start{margin-top:42px;width:100%;max-width:300px;padding:18px;border:none;border-radius:16px;
+         font:800 1.4rem/1 Georgia,serif;color:#fff;cursor:pointer;letter-spacing:.5px;
+         background:linear-gradient(180deg,#e8d985,#d9c463);
+         box-shadow:0 6px 16px rgba(20,40,70,.25);text-shadow:0 1px 3px rgba(20,40,70,.35)}
   .start:active{transform:scale(.97)}
 </style>
 </head>
 <body>
+  <div class="bg"></div>
+
   <div class="frame">
-    <div class="shell">🐚</div>
-    <div class="wel">WELCOME TO</div>
-    <div class="brand">Shell Voice</div>
-    <div class="ar">صوت الصدفة</div>
-    <div class="flag"></div>
+    <div class="w">Wellcome&nbsp;&nbsp;To</div>
+    <div class="s">SHELL VOICE</div>
   </div>
+  <div class="ar">صوت الصدفة</div>
 
-  <div class="field">
-    <label for="nm">اكتب اسمك</label>
-    <input id="nm" type="text" placeholder="اسمك هنا..." autocomplete="off">
-  </div>
+  <div class="enter">enter youre name</div>
+  <input id="nm" type="text" placeholder="Type here" autocomplete="off">
 
-  <button class="start" onclick="go()">ابدأ ▶</button>
+  <button class="start" onclick="go()">get started</button>
 
   <script>
     function go(){
