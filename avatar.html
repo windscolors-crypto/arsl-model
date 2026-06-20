@@ -316,26 +316,32 @@ s3.src='lib/three-examples/FBXLoader.js';
 s2.onload=()=>document.head.appendChild(s3);
 
 s3.onload=()=>{
-  document.getElementById('loading').textContent='✅ جاهز — ارفعي ملف FBX';
+  const loader=new THREE.FBXLoader();
+  function onFBX(fbx){
+    if(currentModel) scene.remove(currentModel);
+    fbx.scale.setScalar(0.022);fbx.position.set(0,-1.2,0);
+    fbx.traverse(c=>{if(c.isMesh){c.castShadow=true;c.receiveShadow=true;}});
+    scene.add(fbx);currentModel=fbx;
+    buildBoneMap(fbx);
+    if(fbx.animations&&fbx.animations.length){mixer=new THREE.AnimationMixer(fbx);mixer.clipAction(fbx.animations[0]).play();}
+    document.getElementById('loading').style.display='none';
+    document.getElementById('upload-btn').textContent='🔄 غيّري الأفيتار';
+    dbg('✅ الأفيتار جاهز — اضغطي كلمة');
+  }
+  // ★ تحميل الأفيتار تلقائياً من المستودع (بدون رفع يدوي)
+  document.getElementById('loading').textContent='⏳ جاري تحميل الأفيتار...';
+  document.getElementById('loading').style.display='block';
+  loader.load('boy_rigged_face.fbx', onFBX,
+    xhr=>{document.getElementById('loading').textContent='⏳ '+Math.round(xhr.loaded/(xhr.total||1)*100)+'%';},
+    err=>{document.getElementById('loading').textContent='❌ خطأ بتحميل الأفيتار';dbg('❌ '+err);});
+  // زر الرفع يبقى كاحتياط لتغيير الأفيتار يدوياً
   document.getElementById('file-input').addEventListener('change',e=>{
     const file=e.target.files[0];if(!file) return;
     document.getElementById('loading').textContent='⏳ جاري التحميل...';
     document.getElementById('loading').style.display='block';
-    const loader=new THREE.FBXLoader();
-    loader.load(URL.createObjectURL(file),fbx=>{
-      if(currentModel) scene.remove(currentModel);
-      fbx.scale.setScalar(0.022);fbx.position.set(0,-1.2,0);
-      fbx.traverse(c=>{if(c.isMesh){c.castShadow=true;c.receiveShadow=true;}});
-      scene.add(fbx);currentModel=fbx;
-      buildBoneMap(fbx);
-      if(fbx.animations&&fbx.animations.length){mixer=new THREE.AnimationMixer(fbx);mixer.clipAction(fbx.animations[0]).play();}
-      document.getElementById('loading').style.display='none';
-      document.getElementById('upload-btn').textContent='🔄 غيّري الملف';
-      dbg('✅ FBX جاهز — اضغطي كلمة');
-      // افتح التشخيص تلقائياً
-      document.getElementById('dbg').style.display='block';
-    },xhr=>{document.getElementById('loading').textContent=`⏳ ${Math.round(xhr.loaded/xhr.total*100)}%`;},
-    err=>{document.getElementById('loading').textContent='❌ خطأ';dbg('❌ '+err);});
+    loader.load(URL.createObjectURL(file),onFBX,
+      xhr=>{document.getElementById('loading').textContent='⏳ '+Math.round(xhr.loaded/(xhr.total||1)*100)+'%';},
+      err=>{document.getElementById('loading').textContent='❌ خطأ';dbg('❌ '+err);});
   });
 };
 

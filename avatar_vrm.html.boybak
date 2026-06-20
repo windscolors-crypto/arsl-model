@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Shell Voice — تعلّم</title>
+<title>Shell Voice — Avatar (VRoid)</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0a0a12">
 <link rel="apple-touch-icon" href="./icon-192.png">
@@ -23,17 +23,13 @@
   #dbg{display:none;position:fixed;top:46px;left:8px;right:8px;background:#0d1117ee;border:1px solid #30363d;border-radius:8px;padding:8px;color:#8b949e;font-size:11px;line-height:1.6;max-height:150px;overflow-y:auto;z-index:9}
   #sent{position:fixed;bottom:56px;left:6px;right:6px;display:flex;gap:6px;z-index:10}
   #sentIn{flex:1;background:#161b22;border:1px solid #30363d;border-radius:8px;color:#e6edf3;padding:7px 10px;font-size:13px}
-  #wp{position:fixed;bottom:46px;left:0;right:0;display:flex;gap:5px;overflow-x:auto;padding:6px 8px;background:#0d111799;scrollbar-width:none}
+  #wp{position:fixed;bottom:0;left:0;right:0;display:flex;gap:5px;overflow-x:auto;padding:6px 8px;background:#0d111799;scrollbar-width:none}
   #wp::-webkit-scrollbar{display:none}
   .wb{flex-shrink:0;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:5px 9px;color:#e6edf3;cursor:pointer;min-width:48px;text-align:center}
   .wb .ar{display:block;font-size:12px;font-weight:600}
   .wb .en{display:block;font-size:9px;color:#8b949e}
   .wb.on{background:#1a3a55;border-color:#7eb8f7;color:#7eb8f7}
   #loading{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:#7eb8f7;font-size:1.1rem}
-  #cats{position:fixed;bottom:0;left:0;right:0;display:flex;gap:6px;overflow-x:auto;padding:6px 8px;background:#0d1117;z-index:11;scrollbar-width:none}
-  #cats::-webkit-scrollbar{display:none}
-  .cat{background:#11203d;border:1px solid #33508a;color:#cfe3ff;font-size:.82rem;padding:7px 16px;border-radius:14px;cursor:pointer;white-space:nowrap}
-  .cat.on{background:#2563eb;border-color:#2563eb;color:#fff;font-weight:bold}
 </style>
 </head>
 <body>
@@ -52,7 +48,10 @@
 <div id="dbg"></div>
 <div id="label">Shell Voice</div>
 <div id="pg"><div id="pgb"></div></div>
-<div id="cats"></div>
+<div id="sent">
+  <input id="sentIn" placeholder="اكتبي جملة… مثال: أنا أحب أم">
+  <button class="btn" onclick="runSentence()">أشّر الجملة ▶</button>
+</div>
 <div id="wp"></div>
 
 <script src="./libs/three.min.js"></script>
@@ -179,7 +178,7 @@ function applyFrame(fr){if(!fr||!fr.pose||!fr.pose.lsh)return;driveArm('left',fr
 
 /* ===== DATA ===== */
 let signData=null;
-function setData(d){signData=d;dbg('✅ بيانات: '+Object.keys(d).length+' كلمة');if(window.showCat)showCat(curCat);}
+function setData(d){signData=d;dbg('✅ بيانات: '+Object.keys(d).length+' كلمة');buildButtons(Object.keys(d));}
 fetch('./sign_animations_holistic.json').then(r=>{if(!r.ok)throw 0;return r.json()}).then(setData).catch(()=>dbg('⚠️ ارفعي بيانات JSON'));
 document.getElementById('jfile').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{setData(JSON.parse(rd.result))}catch(x){dbg('❌ JSON: '+x)}};rd.readAsText(f)});
 
@@ -205,16 +204,7 @@ window.runSentence=function(){
 };
 const wp=document.getElementById('wp');
 function buildButtons(keys){wp.innerHTML='';for(const en of keys){const ar=WORDS[en]||en;const b=document.createElement('button');b.className='wb';b.setAttribute('data-k',en);b.innerHTML=`<span class="ar">${ar}</span><span class="en">${en.replace(/_/g,' ')}</span>`;b.onclick=()=>window.playSign(en);wp.appendChild(b);}}
-const CATS={
- 'أرقام':['1','2','3','4','5','6','7','8','9','10'],
- 'أفعال':['eat','drink','sleep','wakeup','hear','walk','love','hate','think','help','choose','call','stand'],
- 'عائلة':['family','father','mother','brother','sister','grandfather','grandmother'],
- 'متنوّع':['hearing_disability','silence']
-};
-let curCat=Object.keys(CATS)[0];
-const catsEl=document.getElementById('cats');
-window.showCat=function(name){curCat=name;[...catsEl.children].forEach(c=>c.classList.toggle('on',c.dataset.c===name));buildButtons(CATS[name]||[]);};
-(function buildCats(){catsEl.innerHTML='';for(const name of Object.keys(CATS)){const b=document.createElement('button');b.className='cat';b.dataset.c=name;b.textContent=name;b.onclick=()=>showCat(name);catsEl.appendChild(b);}showCat(curCat);})();
+buildButtons(Object.keys(WORDS));
 
 /* ===== fit ===== */
 function fitModel(root){root.position.set(0,0,0);root.updateMatrixWorld(true);
