@@ -40,9 +40,19 @@ jobs:
             --exclude 'package-lock.json' \
             --exclude 'capacitor.config.json' \
             ./ www/
-          # التطبيق يفتح القائمة الرئيسية home.html
-          if [ -f www/home.html ]; then cp www/home.html www/index.html; fi
-          echo "محتويات www:" && ls www | head -40
+          # احفظ صفحة الحروف باسم ثابت، واجعل welcome هي مدخل التطبيق
+          cp www/index.html www/letters.html
+          cp www/welcome.html www/index.html
+          # عطّل Service Worker داخل التطبيق (الملفات محزومة، غير لازم)
+          for p in www/*.html; do
+            sed -i 's/"serviceWorker" in navigator/false/g' "$p"
+            sed -i "s/'serviceWorker' in navigator/false/g" "$p"
+          done
+          # زر الرجوع للقائمة في صفحات الميزات
+          for p in avatar_vrm.html learn.html letters.html words.html; do
+            sed -i "s|</body>|<a href=\"choices.html\" style=\"position:fixed;top:10px;left:10px;z-index:99999;background:#ce1126;color:#fff;padding:9px 14px;border-radius:14px;text-decoration:none;font:700 16px sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.3)\">🏠</a></body>|" "www/$p"
+          done
+          echo "www:" && ls www | head -50
 
       - name: Install Capacitor
         run: npm install
