@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Shell Voice — Avatar (VRoid)</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#0a0a12">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}</script>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:#0a0a12;font-family:sans-serif;overflow:hidden}
@@ -50,7 +54,7 @@
 </div>
 <div id="wp"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="./libs/three.min.js"></script>
 <script>
 const C=document.getElementById('c');
 const renderer=new THREE.WebGLRenderer({antialias:true});
@@ -69,7 +73,7 @@ function dbg(m){const d=document.getElementById('dbg');d.innerHTML+=m+'<br>';d.s
 /* ===== TUNING (نعدّلها بالتجربة) ===== */
 let MIRROR_X=false, SWAP_HANDS=false, ZK=0.5, SMOOTH=0.85, DRIVE_FINGERS=true, DRIVE_FACE=true, DRIVE_WRIST=true, FK=1.0, PALM_ROLL=true, RSIGN=1, FPS=5, ARM_FWD=0.45;
 
-const WORDS={'0':'٠','1':'١','2':'٢','3':'٣','4':'٤','eat':'أكل','drink':'شرب','sleep':'نوم','wakeup':'استيقاظ','sit':'جلوس','stand':'وقوف','love':'حب','take':'أخذ','help':'مساعدة','think':'تفكير','choose':'اختيار','father':'أب','mother':'أم','family':'أسرة','brother':'أخ','grandfather':'جد','grandmother':'جدة','hearing_disability':'إعاقة سمعية','health':'صحة','silence':'صمت'};
+const WORDS={'1':'١','2':'٢','3':'٣','4':'٤','5':'٥','6':'٦','7':'٧','8':'٨','9':'٩','10':'١٠','hearing_disability':'إعاقة سمعية','eat':'أكل','drink':'شرب','sleep':'نوم','wakeup':'استيقاظ','hear':'يسمع','silence':'صمت','walk':'يمشي','love':'حب','hate':'يكره','think':'تفكير','help':'مساعدة','choose':'اختيار','call':'ينادي','stand':'وقوف','family':'أسرة','grandmother':'جدة','grandfather':'جد','father':'أب','mother':'أم','sister':'أخت','brother':'أخ'};
 const AR2EN={};for(const k in WORDS)AR2EN[WORDS[k]]=k;
 
 /* ===== BONES (تحويل أسماء VRM إلى أسماء ميكسامو) ===== */
@@ -210,7 +214,7 @@ function fitModel(root){root.position.set(0,0,0);root.updateMatrixWorld(true);
   root.position.set(-c.x,-b2.min.y,-c.z);dbg('📏 scale '+k.toFixed(3));}
 
 /* ===== GLTF/VRM loader ===== */
-const sg=document.createElement('script');sg.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js';document.head.appendChild(sg);
+const sg=document.createElement('script');sg.src='./libs/GLTFLoader.js';document.head.appendChild(sg);
 let ang=0;
 function frameCamera(root){
   const bb=new THREE.Box3().setFromObject(root),ctr=new THREE.Vector3(),sz=new THREE.Vector3();
