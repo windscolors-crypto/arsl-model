@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shell Voice — Avatar (VRoid)</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#0a0a12">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}</script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#0a0a12;font-family:sans-serif;overflow:hidden}
+  #c{width:100vw;height:100vh}
+  canvas{display:block}
+  #label{position:fixed;bottom:108px;left:50%;transform:translateX(-50%);background:#0d0d1acc;border:1px solid #7eb8f733;border-radius:20px;padding:8px 24px;color:#7eb8f7;font-size:1rem;pointer-events:none;white-space:nowrap}
+  #pg{position:fixed;bottom:100px;left:10%;right:10%;height:3px;background:#1a2a4a;border-radius:2px}
+  #pgb{height:100%;width:0;background:linear-gradient(90deg,#7eb8f7,#00ff99);border-radius:2px}
+  #top{position:fixed;top:8px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:10;flex-wrap:wrap;justify-content:center}
+  .btn{background:#1c2e58;border:1px solid #7eb8f7;color:#fff;font-size:.8rem;padding:7px 12px;border-radius:10px;cursor:pointer}
+  #file,#jfile{display:none}
+  #dbgT{position:fixed;top:8px;right:8px;background:#21262d;border:1px solid #30363d;color:#8b949e;font-size:11px;padding:5px 9px;border-radius:7px;cursor:pointer;z-index:10}
+  #dbg{display:none;position:fixed;top:46px;left:8px;right:8px;background:#0d1117ee;border:1px solid #30363d;border-radius:8px;padding:8px;color:#8b949e;font-size:11px;line-height:1.6;max-height:150px;overflow-y:auto;z-index:9}
+  #sent{position:fixed;bottom:56px;left:6px;right:6px;display:flex;gap:6px;z-index:10}
+  #sentIn{flex:1;background:#161b22;border:1px solid #30363d;border-radius:8px;color:#e6edf3;padding:7px 10px;font-size:13px}
+  #wp{position:fixed;bottom:0;left:0;right:0;display:flex;gap:5px;overflow-x:auto;padding:6px 8px;background:#0d111799;scrollbar-width:none}
+  #wp::-webkit-scrollbar{display:none}
+  .wb{flex-shrink:0;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:5px 9px;color:#e6edf3;cursor:pointer;min-width:48px;text-align:center}
+  .wb .ar{display:block;font-size:12px;font-weight:600}
+  .wb .en{display:block;font-size:9px;color:#8b949e}
+  .wb.on{background:#1a3a55;border-color:#7eb8f7;color:#7eb8f7}
+  #loading{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:#7eb8f7;font-size:1.1rem}
+</style>
+</head>
+<body>
+<div id="c"></div>
+<div id="loading">⏳ جاري التحميل...</div>
+<div id="top">
+  <button class="btn" onclick="document.getElementById('file').click()">📂 VRM</button>
+  <button class="btn" onclick="document.getElementById('jfile').click()">📄 بيانات</button>
+  <button class="btn" onclick="testFace('jawOpen')">😮 فم</button>
+  <button class="btn" onclick="testFace('eyeBlinkLeft','eyeBlinkRight')">😉 رمش</button>
+  <button class="btn" onclick="testFace('browInnerUp')">🤨 حواجب</button>
+</div>
+<input type="file" id="file" accept=".vrm,.glb,.gltf">
+<input type="file" id="jfile" accept=".json">
+<button id="dbgT" onclick="var d=document.getElementById('dbg');d.style.display=d.style.display==='none'?'block':'none'">🔍</button>
+<div id="dbg"></div>
+<div id="label">Shell Voice</div>
+<div id="pg"><div id="pgb"></div></div>
+<div id="sent">
+  <input id="sentIn" placeholder="اكتبي جملة… مثال: أنا أحب أم">
+  <button class="btn" onclick="runSentence()">أشّر الجملة ▶</button>
+</div>
+<div id="wp"></div>
+
+<script src="./libs/three.min.js"></script>
+<script>
+const C=document.getElementById('c');
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(devicePixelRatio);renderer.setSize(innerWidth,innerHeight);
+renderer.outputEncoding=THREE.sRGBEncoding;renderer.shadowMap.enabled=true;C.appendChild(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x0a0a12);scene.fog=new THREE.Fog(0x0a0a12,10,30);
+const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,100);
+camera.position.set(0,1.3,2.6);camera.lookAt(0,1.0,0);
+scene.add(new THREE.AmbientLight(0xffffff,1.5));
+const kl=new THREE.DirectionalLight(0xffffff,1.8);kl.position.set(1,3,3);scene.add(kl);
+scene.add(new THREE.DirectionalLight(0xbcd8ff,0.6)).position.set(-2,1,-2);
+scene.add(new THREE.GridHelper(10,20,0x1a2a4a,0x111828));
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+function dbg(m){const d=document.getElementById('dbg');d.innerHTML+=m+'<br>';d.scrollTop=9999;console.log(m)}
+
+/* ===== TUNING (نعدّلها بالتجربة) ===== */
+let MIRROR_X=false, SWAP_HANDS=false, ZK=0.5, SMOOTH=0.85, DRIVE_FINGERS=true, DRIVE_FACE=true, DRIVE_WRIST=true, FK=1.0, PALM_ROLL=true, RSIGN=1, FPS=5, ARM_FWD=0.45;
+
+const WORDS={'0':'٠','1':'١','2':'٢','3':'٣','4':'٤','eat':'أكل','drink':'شرب','sleep':'نوم','wakeup':'استيقاظ','sit':'جلوس','stand':'وقوف','love':'حب','take':'أخذ','help':'مساعدة','think':'تفكير','choose':'اختيار','father':'أب','mother':'أم','family':'أسرة','brother':'أخ','grandfather':'جد','grandmother':'جدة','hearing_disability':'إعاقة سمعية','health':'صحة','silence':'صمت'};
+const AR2EN={};for(const k in WORDS)AR2EN[WORDS[k]]=k;
+
+/* ===== BONES (تحويل أسماء VRM إلى أسماء ميكسامو) ===== */
+let boneMap={};
+function vrmAlias(name){
+  const m=name.match(/^J_Bip_([CLR])_(.+)$/); if(!m)return null;
+  const side=m[1]==='L'?'Left':m[1]==='R'?'Right':''; const part=m[2];
+  const c={Hips:'Hips',Spine:'Spine',Chest:'Spine1',UpperChest:'Spine2',Neck:'Neck',Head:'Head',
+           Shoulder:side+'Shoulder',UpperArm:side+'Arm',LowerArm:side+'ForeArm',Hand:side+'Hand'};
+  if(c[part])return c[part];
+  const f=part.match(/^(Thumb|Index|Middle|Ring|Little)(\d)$/);
+  if(f){const fn=f[1]==='Little'?'Pinky':f[1];return side+'Hand'+fn+f[2];}
+  return null;
+}
+function buildBoneMap(root){boneMap={};root.traverse(o=>{if(!o.isBone&&o.type!=='Bone')return;boneMap[o.name]=o;const c=o.name.replace(/^mixamorig[0-9]*:?/i,'');if(!boneMap[c])boneMap[c]=o;const a=vrmAlias(o.name);if(a&&!boneMap[a])boneMap[a]=o;});dbg('🦴 عظام: '+Object.keys(boneMap).length);}
+function findBone(...n){for(const x of n){if(boneMap[x])return boneMap[x];}return null;}
+
+const FINGERS=[
+ ['Thumb1','Thumb2',1,2],['Thumb2','Thumb3',2,3],['Thumb3','Thumb4',3,4],
+ ['Index1','Index2',5,6],['Index2','Index3',6,7],['Index3','Index4',7,8],
+ ['Middle1','Middle2',9,10],['Middle2','Middle3',10,11],['Middle3','Middle4',11,12],
+ ['Ring1','Ring2',13,14],['Ring2','Ring3',14,15],['Ring3','Ring4',15,16],
+ ['Pinky1','Pinky2',17,18],['Pinky2','Pinky3',18,19],['Pinky3','Pinky4',19,20],
+];
+const IDENT=new THREE.Quaternion();
+const _cw=new THREE.Vector3(),_bw=new THREE.Vector3(),_cur=new THREE.Vector3(),_qd=new THREE.Quaternion(),_bWq=new THREE.Quaternion(),_pWq=new THREE.Quaternion();
+function aim(bone,child,dir,t){
+  if(!bone||!child)return;
+  bone.parent.updateMatrixWorld(true);bone.updateMatrixWorld(true);
+  child.getWorldPosition(_cw);bone.getWorldPosition(_bw);
+  _cur.copy(_cw).sub(_bw);if(_cur.lengthSq()<1e-8)return;_cur.normalize();
+  _qd.setFromUnitVectors(_cur,dir);
+  bone.getWorldQuaternion(_bWq);
+  const desired=_qd.multiply(_bWq);
+  bone.parent.getWorldQuaternion(_pWq).invert();
+  bone.quaternion.slerp(_pWq.multiply(desired),t);
+  bone.updateMatrixWorld(true);
+}
+const _d=new THREE.Vector3();
+function mapDir(a,b){_d.set((b[0]-a[0])*(MIRROR_X?-1:1),-(b[1]-a[1]),-(b[2]-a[2])*ZK+ARM_FWD);if(_d.lengthSq()<1e-9)_d.set(0,-1,0);return _d.clone().normalize();}
+function relaxFingers(s){for(const[b]of FINGERS){const o=findBone(s+'Hand'+b);if(o)o.quaternion.slerp(IDENT,0.3);}}
+const _fd=new THREE.Vector3();
+function fingerDir(a,b){_fd.set((b[0]-a[0])*(MIRROR_X?-1:1),-(b[1]-a[1]),-(b[2]-a[2])*ZK*FK);if(_fd.lengthSq()<1e-9)_fd.set(0,-1,0);return _fd.clone().normalize();}
+function driveFingers(side,hand){
+  if(!hand||hand.length<21)return;
+  for(const[b,cb,a,bb]of FINGERS){const bone=findBone(side+'Hand'+b),child=findBone(side+'Hand'+cb);if(!bone||!child)continue;aim(bone,child,fingerDir(hand[a],hand[bb]),SMOOTH);}
+}
+const _Y=new THREE.Vector3(),_acD=new THREE.Vector3(),_nD=new THREE.Vector3(),_pi=new THREE.Vector3(),_pp=new THREE.Vector3(),_acC=new THREE.Vector3(),_nC=new THREE.Vector3(),_crs=new THREE.Vector3(),_qR=new THREE.Quaternion(),_wq=new THREE.Quaternion(),_pq=new THREE.Quaternion();
+function mapVec(a,b,out){out.set((b[0]-a[0])*(MIRROR_X?-1:1),-(b[1]-a[1]),-(b[2]-a[2])*ZK);return out;}
+function orientHand(side,hand){
+  const hnd=findBone(side+'Hand'),mid=findBone(side+'HandMiddle1');if(!hnd)return;
+  mapVec(hand[0],hand[9],_Y).normalize();if(mid)aim(hnd,mid,_Y,SMOOTH);
+  if(!PALM_ROLL)return;hnd.updateMatrixWorld(true);
+  const idx=findBone(side+'HandIndex1'),pky=findBone(side+'HandPinky1');if(!idx||!pky)return;
+  mapVec(hand[5],hand[17],_acD).normalize();_nD.crossVectors(_acD,_Y);if(_nD.lengthSq()<0.08)return;_nD.normalize();
+  idx.getWorldPosition(_pi);pky.getWorldPosition(_pp);_acC.copy(_pp).sub(_pi).normalize();_nC.crossVectors(_acC,_Y);if(_nC.lengthSq()<1e-4)return;_nC.normalize();
+  let ang=Math.atan2(_crs.crossVectors(_nC,_nD).dot(_Y),_nC.dot(_nD))*RSIGN;if(!isFinite(ang))return;
+  _qR.setFromAxisAngle(_Y,ang);hnd.getWorldQuaternion(_wq);_wq.premultiply(_qR);hnd.parent.getWorldQuaternion(_pq).invert();hnd.quaternion.copy(_pq.multiply(_wq));hnd.updateMatrixWorld(true);
+}
+
+/* ===== الوجه: ربط ARKit → تعابير VRoid (Fcl) ===== */
+let faceMeshes=null;
+const ARKIT2VRM={
+  jawOpen:['Fcl_MTH_A'], mouthFunnel:['Fcl_MTH_O'], mouthPucker:['Fcl_MTH_U'],
+  mouthSmileLeft:['Fcl_MTH_Fun'], mouthSmileRight:['Fcl_MTH_Fun'],
+  mouthFrownLeft:['Fcl_MTH_Sorrow'], mouthFrownRight:['Fcl_MTH_Sorrow'],
+  eyeBlinkLeft:['Fcl_EYE_Close_L'], eyeBlinkRight:['Fcl_EYE_Close_R'],
+  browInnerUp:['Fcl_BRW_Surprised'], browDownLeft:['Fcl_BRW_Angry'], browDownRight:['Fcl_BRW_Angry'],
+  mouthClose:['Fcl_MTH_Close']
+};
+const FACE_GAIN={jawOpen:1.4, eyeBlinkLeft:1.2, eyeBlinkRight:1.2, browInnerUp:1.3};
+function collectFaceMeshes(){faceMeshes=[];model.traverse(o=>{if(o.isMesh&&o.morphTargetDictionary&&o.morphTargetInfluences)faceMeshes.push(o);});dbg('😊 morph meshes: '+faceMeshes.length);}
+function applyFace(face){
+  if(!face||!model)return; if(faceMeshes===null)collectFaceMeshes();
+  const acc={};
+  for(const ak in face){const tg=ARKIT2VRM[ak];if(!tg)continue;const v=Math.min(1,(face[ak]||0)*(FACE_GAIN[ak]||1));for(const t of tg)acc[t]=Math.max(acc[t]||0,v);}
+  for(const o of faceMeshes){const d=o.morphTargetDictionary,inf=o.morphTargetInfluences;
+    for(const ak in ARKIT2VRM)for(const t of ARKIT2VRM[ak])if(d[t]!==undefined)inf[d[t]]=0;
+    for(const t in acc)if(d[t]!==undefined)inf[d[t]]=acc[t];
+  }
+}
+let _testT=null;
+function testFace(...arkit){
+  if(!model){return;} if(faceMeshes===null)collectFaceMeshes();
+  const f={}; arkit.forEach(a=>f[a]=1); applyFace(f);
+  if(_testT)clearTimeout(_testT); _testT=setTimeout(()=>applyFace({}),1200);
+}
+
+function handPresent(h){return !!(h&&h.length>=21&&h.some(p=>p[0]||p[1]||p[2]));}
+const lastHand={Left:null,Right:null};
+function driveArm(rec,pose,hand){
+  const aSide=((rec==='left')!==SWAP_HANDS)?'Left':'Right';
+  const sh=rec==='left'?pose.lsh:pose.rsh, el=rec==='left'?pose.lel:pose.rel, wr=rec==='left'?pose.lwr:pose.rwr;
+  if(!sh||!el||!wr)return;
+  const arm=findBone(aSide+'Arm'),fore=findBone(aSide+'ForeArm'),hnd=findBone(aSide+'Hand');
+  aim(arm,fore,mapDir(sh,el),SMOOTH); aim(fore,hnd,mapDir(el,wr),SMOOTH);
+  let h=handPresent(hand)?hand:lastHand[aSide]; if(handPresent(hand))lastHand[aSide]=hand;
+  if(DRIVE_WRIST&&h){orientHand(aSide,h);}else if(hnd)hnd.quaternion.slerp(IDENT,SMOOTH);
+  if(DRIVE_FINGERS&&h)driveFingers(aSide,h);else relaxFingers(aSide);
+}
+function applyFrame(fr){if(!fr||!fr.pose||!fr.pose.lsh)return;driveArm('left',fr.pose,fr.left);driveArm('right',fr.pose,fr.right);if(DRIVE_FACE&&fr.face)applyFace(fr.face);}
+
+/* ===== DATA ===== */
+let signData=null;
+function setData(d){signData=d;dbg('✅ بيانات: '+Object.keys(d).length+' كلمة');buildButtons(Object.keys(d));}
+fetch('./sign_animations_holistic.json').then(r=>{if(!r.ok)throw 0;return r.json()}).then(setData).catch(()=>dbg('⚠️ ارفعي بيانات JSON'));
+document.getElementById('jfile').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{setData(JSON.parse(rd.result))}catch(x){dbg('❌ JSON: '+x)}};rd.readAsText(f)});
+
+/* ===== PLAYBACK ===== */
+let model=null,tick=null;
+const pgb=document.getElementById('pgb'),lbl=document.getElementById('label');
+window.playSign=function(word,onEnd){
+  document.querySelectorAll('.wb').forEach(b=>b.classList.remove('on'));
+  const btn=document.querySelector(`.wb[data-k="${word}"]`);if(btn)btn.classList.add('on');
+  lbl.textContent=WORDS[word]||word;
+  if(!signData||!model){dbg('⏳ لسا');onEnd&&onEnd();return;}
+  lastHand.Left=null;lastHand.Right=null;
+  const fr=signData[word];if(!fr||!fr.length){dbg('⚠️ مش موجودة: '+word);onEnd&&onEnd();return;}
+  let i=0;if(tick)clearInterval(tick);
+  tick=setInterval(()=>{if(!model)return;applyFrame(fr[i]);pgb.style.width=((i+1)/fr.length*100)+'%';
+    if(++i>=fr.length){clearInterval(tick);tick=null;pgb.style.width='0%';setTimeout(()=>{onEnd&&onEnd();},400);}},1000/FPS);
+};
+window.runSentence=function(){
+  const txt=document.getElementById('sentIn').value.trim();if(!txt)return;
+  const keys=txt.split(/\s+/).map(w=>AR2EN[w]||(WORDS[w]?w:null)).filter(Boolean);
+  if(!keys.length){dbg('⚠️ ما في كلمات معروفة');return;}
+  let k=0;const next=()=>{if(k>=keys.length){lbl.textContent='Shell Voice';return;}window.playSign(keys[k++],next);};next();
+};
+const wp=document.getElementById('wp');
+function buildButtons(keys){wp.innerHTML='';for(const en of keys){const ar=WORDS[en]||en;const b=document.createElement('button');b.className='wb';b.setAttribute('data-k',en);b.innerHTML=`<span class="ar">${ar}</span><span class="en">${en.replace(/_/g,' ')}</span>`;b.onclick=()=>window.playSign(en);wp.appendChild(b);}}
+buildButtons(Object.keys(WORDS));
+
+/* ===== fit ===== */
+function fitModel(root){root.position.set(0,0,0);root.updateMatrixWorld(true);
+  const b=new THREE.Box3().setFromObject(root),s=new THREE.Vector3();b.getSize(s);
+  const k=1.6/(s.y||1);root.scale.setScalar(k);root.updateMatrixWorld(true);
+  const b2=new THREE.Box3().setFromObject(root),c=new THREE.Vector3();b2.getCenter(c);
+  root.position.set(-c.x,-b2.min.y,-c.z);dbg('📏 scale '+k.toFixed(3));}
+
+/* ===== GLTF/VRM loader ===== */
+const sg=document.createElement('script');sg.src='./libs/GLTFLoader.js';document.head.appendChild(sg);
+let ang=0;
+function frameCamera(root){
+  const bb=new THREE.Box3().setFromObject(root),ctr=new THREE.Vector3(),sz=new THREE.Vector3();
+  bb.getCenter(ctr);bb.getSize(sz);
+  const dist=sz.y*1.5+0.6;
+  camera.position.set(ctr.x, ctr.y+0.05, ctr.z+dist);
+  camera.lookAt(ctr.x,ctr.y,ctr.z);camera.updateProjectionMatrix();
+  scene.fog=new THREE.Fog(0x0a0a12, dist+2, dist+20);
+}
+function onLoaded(gltf){const root=gltf.scene||(gltf.scenes&&gltf.scenes[0]);if(!root){dbg('❌ بلا scene');return;}
+  if(model)scene.remove(model);
+  root.rotation.y=ang;                       // 0 = يواجه الكاميرا (نعدّلها لو ظهر الظهر)
+  fitModel(root);
+  root.traverse(c=>{if(c.isMesh){c.castShadow=true;c.frustumCulled=false;if(c.material){c.material.side=THREE.DoubleSide;c.material.needsUpdate=true;}}});
+  scene.add(root);model=root;faceMeshes=null;buildBoneMap(root);collectFaceMeshes();
+  frameCamera(root);
+  document.getElementById('loading').style.display='none';dbg('✅ غزل VRM جاهز — اضغطي كلمة أو جرّبي أزرار الوجه');document.getElementById('dbg').style.display='block';}
+function loadURL(u,i){i=i||0;const urls=['./girl.vrm','girl.vrm','https://windscolors-crypto.github.io/arsl-model/girl.vrm'];
+  if(typeof u==='string'){new THREE.GLTFLoader().load(u,onLoaded,null,e=>dbg('❌ '+(e&&e.message||e)));return;}
+  if(i>=urls.length){document.getElementById('loading').textContent='اضغطي 📂 VRM وارفعي girl.vrm';return;}
+  new THREE.GLTFLoader().load(urls[i],onLoaded,null,()=>loadURL(0,i+1));}
+sg.onload=()=>{loadURL();document.getElementById('file').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;document.getElementById('loading').style.display='block';document.getElementById('loading').textContent='⏳ تحميل...';loadURL(URL.createObjectURL(f));});};
+
+/* ===== orbit + zoom ===== */
+let drag=false,px=0;
+renderer.domElement.addEventListener('mousedown',e=>{drag=true;px=e.clientX});
+renderer.domElement.addEventListener('mousemove',e=>{if(!drag||!model)return;ang+=(e.clientX-px)*0.01;model.rotation.y=ang;px=e.clientX});
+addEventListener('mouseup',()=>drag=false);
+renderer.domElement.addEventListener('wheel',e=>{camera.position.multiplyScalar(e.deltaY>0?1.07:0.93)},{passive:true});
+renderer.domElement.addEventListener('touchstart',e=>{drag=true;px=e.touches[0].clientX});
+renderer.domElement.addEventListener('touchmove',e=>{if(!drag||!model)return;ang+=(e.touches[0].clientX-px)*0.01;model.rotation.y=ang;px=e.touches[0].clientX});
+addEventListener('touchend',()=>drag=false);
+
+const clock=new THREE.Clock();
+(function loop(){requestAnimationFrame(loop);renderer.render(scene,camera)})();
+</script>
+</body>
+</html>
