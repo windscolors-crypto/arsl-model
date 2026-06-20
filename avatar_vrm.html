@@ -239,14 +239,8 @@ function loadURL(u,i){i=i||0;const urls=['./girl.vrm','girl.vrm','https://windsc
 sg.onload=()=>{loadURL();document.getElementById('file').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;document.getElementById('loading').style.display='block';document.getElementById('loading').textContent='⏳ تحميل...';loadURL(URL.createObjectURL(f));});};
 
 /* ===== orbit + zoom ===== */
-let drag=false,px=0;
-renderer.domElement.addEventListener('mousedown',e=>{drag=true;px=e.clientX});
-renderer.domElement.addEventListener('mousemove',e=>{if(!drag||!model)return;ang+=(e.clientX-px)*0.01;model.rotation.y=ang;px=e.clientX});
-addEventListener('mouseup',()=>drag=false);
-renderer.domElement.addEventListener('wheel',e=>{camera.position.multiplyScalar(e.deltaY>0?1.07:0.93)},{passive:true});
-renderer.domElement.addEventListener('touchstart',e=>{drag=true;px=e.touches[0].clientX});
-renderer.domElement.addEventListener('touchmove',e=>{if(!drag||!model)return;ang+=(e.touches[0].clientX-px)*0.01;model.rotation.y=ang;px=e.touches[0].clientX});
-addEventListener('touchend',()=>drag=false);
+/* الأفيتار ثابت في مكانه — أُلغي التدوير بالسحب والتكبير بالعجلة واللمس
+   ليبقى موضعه على الشاشة دون تغيير (الإشارات تُؤدّى عادي) */
 
 const clock=new THREE.Clock();
 (function loop(){requestAnimationFrame(loop);renderer.render(scene,camera)})();
