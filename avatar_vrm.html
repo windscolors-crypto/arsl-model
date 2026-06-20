@@ -224,6 +224,17 @@ function frameCamera(root){
   camera.lookAt(ctr.x,ctr.y,ctr.z);camera.updateProjectionMatrix();
   scene.fog=new THREE.Fog(0x0a0a12, dist+2, dist+20);
 }
+// وضعية idle: إنزال الذراعين بدل T-pose
+const IDLE_Z = 1.18;   // زاوية إنزال الذراع (تُعاير)
+function setIdlePose(){
+  const la=findBone('LeftArm','LeftUpperArm'), ra=findBone('RightArm','RightUpperArm');
+  if(la){ la.rotation.set(0,0, IDLE_Z); }
+  if(ra){ ra.rotation.set(0,0,-IDLE_Z); }
+  const lf=findBone('LeftForeArm'), rf=findBone('RightForeArm');
+  if(lf) lf.rotation.set(0,0,0.12);
+  if(rf) rf.rotation.set(0,0,-0.12);
+  if(model) model.updateMatrixWorld(true);
+}
 function onLoaded(gltf){const root=gltf.scene||(gltf.scenes&&gltf.scenes[0]);if(!root){dbg('❌ بلا scene');return;}
   if(model)scene.remove(model);
   root.rotation.y=ang;                       // 0 = يواجه الكاميرا (نعدّلها لو ظهر الظهر)
@@ -231,6 +242,7 @@ function onLoaded(gltf){const root=gltf.scene||(gltf.scenes&&gltf.scenes[0]);if(
   root.traverse(c=>{if(c.isMesh){c.castShadow=true;c.frustumCulled=false;if(c.material){c.material.side=THREE.DoubleSide;c.material.needsUpdate=true;}}});
   scene.add(root);model=root;faceMeshes=null;buildBoneMap(root);collectFaceMeshes();
   frameCamera(root);
+  setIdlePose();
   document.getElementById('loading').style.display='none';dbg('✅ غزل VRM جاهز — اضغطي كلمة أو جرّبي أزرار الوجه');document.getElementById('dbg').style.display='block';}
 function loadURL(u,i){i=i||0;const urls=['./girl.vrm','girl.vrm','https://windscolors-crypto.github.io/arsl-model/girl.vrm'];
   if(typeof u==='string'){new THREE.GLTFLoader().load(u,onLoaded,null,e=>dbg('❌ '+(e&&e.message||e)));return;}
@@ -239,14 +251,7 @@ function loadURL(u,i){i=i||0;const urls=['./girl.vrm','girl.vrm','https://windsc
 sg.onload=()=>{loadURL();document.getElementById('file').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;document.getElementById('loading').style.display='block';document.getElementById('loading').textContent='⏳ تحميل...';loadURL(URL.createObjectURL(f));});};
 
 /* ===== orbit + zoom ===== */
-let drag=false,px=0;
-renderer.domElement.addEventListener('mousedown',e=>{drag=true;px=e.clientX});
-renderer.domElement.addEventListener('mousemove',e=>{if(!drag||!model)return;ang+=(e.clientX-px)*0.01;model.rotation.y=ang;px=e.clientX});
-addEventListener('mouseup',()=>drag=false);
-renderer.domElement.addEventListener('wheel',e=>{camera.position.multiplyScalar(e.deltaY>0?1.07:0.93)},{passive:true});
-renderer.domElement.addEventListener('touchstart',e=>{drag=true;px=e.touches[0].clientX});
-renderer.domElement.addEventListener('touchmove',e=>{if(!drag||!model)return;ang+=(e.touches[0].clientX-px)*0.01;model.rotation.y=ang;px=e.touches[0].clientX});
-addEventListener('touchend',()=>drag=false);
+/* الأفيتار ثابت بالوسط — لا تدوير ولا تكبير */
 
 const clock=new THREE.Clock();
 (function loop(){requestAnimationFrame(loop);renderer.render(scene,camera)})();
