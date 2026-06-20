@@ -1,0 +1,8 @@
+{
+  "appId": "com.shellvoice.app",
+  "appName": "صوت الصدفة",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": true
+  }
+}
