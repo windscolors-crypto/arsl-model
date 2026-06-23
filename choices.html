@@ -8,36 +8,33 @@
 <style>
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   html,body{height:100%}
-  body{font-family:-apple-system,"Segoe UI",Tahoma,sans-serif;min-height:100vh;color:#fff;
-       display:flex;flex-direction:column;align-items:center;padding:0 22px 28px;text-align:center}
-  .bg{position:fixed;inset:0;z-index:-1;
-    background:
-      radial-gradient(circle at 50% 100%, transparent 23%, #9dc0db 24% 33%, transparent 34%) 0 0/72px 36px,
-      radial-gradient(circle at 50% 100%, transparent 23%, #b3d0e6 24% 33%, transparent 34%) 36px 18px/72px 36px,
-      linear-gradient(180deg,#dbeaf4,#c3dbec);}
-  .frame{margin-top:40px;background:rgba(255,252,235,.28);border:5px solid #d9c463;border-radius:14px;
-         padding:12px 22px;box-shadow:0 5px 14px rgba(20,40,70,.2)}
-  .frame .s{font:italic 800 1.7rem/1 Georgia,serif;text-shadow:0 2px 6px rgba(20,40,70,.3)}
-  .greet{margin:20px 0 4px;font-size:1.15rem;font-weight:800;text-shadow:0 2px 6px rgba(20,40,70,.3)}
-  .sub{font-size:1rem;font-weight:700;color:#eef6fc;margin-bottom:16px;
-       font-family:Georgia,serif;font-style:italic}
+  body{font-family:-apple-system,"Segoe UI",Tahoma,sans-serif;min-height:100vh;color:#274b63;
+       display:flex;flex-direction:column;align-items:center;padding:0 22px 28px;text-align:center;
+       background:#cfe0ec url('bg_scale.png') center top/cover no-repeat;
+       background-attachment:fixed}
+  .logo{margin-top:18px;width:160px;filter:drop-shadow(0 5px 12px rgba(20,40,70,.2))}
+  .greet{margin:8px 0 2px;font-size:1.2rem;font-weight:800;color:#274b63;
+         text-shadow:0 2px 6px rgba(255,255,255,.6)}
+  .sub{font-size:1rem;font-weight:700;color:#2f5670;margin-bottom:16px;
+       font-family:Georgia,serif;font-style:italic;text-shadow:0 1px 4px rgba(255,255,255,.6)}
   .menu{width:100%;max-width:420px;display:flex;flex-direction:column;gap:14px}
-  a.btn{display:flex;align-items:center;gap:14px;justify-content:center;text-decoration:none;color:#fff;
+  a.btn{display:flex;align-items:center;gap:14px;justify-content:center;text-decoration:none;color:#3a3014;
         padding:18px 16px;border-radius:18px;font:800 1.3rem/1.15 Georgia,serif;
-        background:linear-gradient(180deg,#e8d985,#d9c463);
-        box-shadow:0 5px 14px rgba(20,40,70,.22);text-shadow:0 1px 3px rgba(20,40,70,.3)}
+        background:linear-gradient(180deg,#f3ead0,#e2cf94);
+        box-shadow:0 5px 14px rgba(20,40,70,.2);text-shadow:0 1px 2px rgba(255,255,255,.5)}
   a.btn:active{transform:scale(.97)}
   a.btn .ic{font-size:1.9rem}
-  a.btn small{display:block;font:600 .8rem/1.2 -apple-system,sans-serif;color:#fffef5;margin-top:3px;text-shadow:none}
-  a.translate{background:linear-gradient(180deg,#f0b9c0,#e2949d)}
-  a.learn{background:linear-gradient(180deg,#a9dcc0,#82c8a2)}
-  .foot{margin-top:auto;padding-top:22px;color:#eef6fc;font-size:.8rem}
+  a.btn small{display:block;font:600 .8rem/1.2 -apple-system,sans-serif;color:#5a4a22;margin-top:3px;text-shadow:none}
+  a.translate{background:linear-gradient(180deg,#f6d7db,#eaa9b1);color:#5a2630}
+  a.translate small{color:#7a3c44}
+  a.learn{background:linear-gradient(180deg,#c4ead4,#92cdab);color:#1d4a32}
+  a.learn small{color:#2f5e44}
+  .foot{margin-top:auto;padding-top:22px;color:#3f6178;font-size:.8rem;
+        text-shadow:0 1px 3px rgba(255,255,255,.6)}
 </style>
 </head>
 <body>
-  <div class="bg"></div>
-
-  <div class="frame"><div class="s">SHELL VOICE</div></div>
+  <img class="logo" src="logo.png" alt="Shell Voice">
   <div class="greet" id="greet">choose the theme to talk with</div>
   <div class="sub">صوت الصدفة</div>
 

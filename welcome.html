@@ -10,40 +10,31 @@
   html,body{height:100%}
   body{font-family:-apple-system,"Segoe UI",Tahoma,sans-serif;min-height:100vh;
        display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
-       padding:0 22px 30px;text-align:center;position:relative;color:#fff}
-  .bg{position:fixed;inset:0;z-index:-1;
-    background:
-      radial-gradient(circle at 50% 100%, transparent 23%, #9dc0db 24% 33%, transparent 34%) 0 0/72px 36px,
-      radial-gradient(circle at 50% 100%, transparent 23%, #b3d0e6 24% 33%, transparent 34%) 36px 18px/72px 36px,
-      linear-gradient(180deg,#dbeaf4,#c3dbec);}
-  .frame{margin-top:64px;background:rgba(255,252,235,.28);
-         border:6px solid #d9c463;border-radius:16px;padding:18px 26px;
-         box-shadow:0 6px 18px rgba(20,40,70,.22)}
-  .frame .w{font:italic 700 1.5rem/1 Georgia,"Times New Roman",serif;letter-spacing:1px}
-  .frame .s{font:italic 800 2.2rem/1.1 Georgia,"Times New Roman",serif;margin-top:6px;
-            text-shadow:0 2px 6px rgba(20,40,70,.3)}
-  .ar{margin-top:18px;font-size:1.45rem;font-weight:800;color:#fff;text-shadow:0 2px 6px rgba(20,40,70,.35)}
-  .enter{margin-top:54px;font-size:1.35rem;font-weight:700;text-shadow:0 2px 6px rgba(20,40,70,.3)}
-  input{margin-top:14px;width:100%;max-width:330px;padding:15px 18px;border-radius:14px;border:none;
-        font-size:1.05rem;background:rgba(255,255,255,.92);color:#234;text-align:center}
-  input::placeholder{color:#8aa}
-  .start{margin-top:42px;width:100%;max-width:300px;padding:18px;border:none;border-radius:16px;
-         font:800 1.4rem/1 Georgia,serif;color:#fff;cursor:pointer;letter-spacing:.5px;
-         background:linear-gradient(180deg,#e8d985,#d9c463);
-         box-shadow:0 6px 16px rgba(20,40,70,.25);text-shadow:0 1px 3px rgba(20,40,70,.35)}
+       padding:0 22px 30px;text-align:center;position:relative;color:#274b63;
+       background:#cfe0ec url('bg_scale.png') center top/cover no-repeat;
+       background-attachment:fixed}
+  .logo{margin-top:34px;width:100%;max-width:300px;
+        filter:drop-shadow(0 6px 16px rgba(20,40,70,.22))}
+  .ar{margin-top:6px;font-size:1.5rem;font-weight:800;color:#274b63;
+      text-shadow:0 2px 6px rgba(255,255,255,.6)}
+  .enter{margin-top:40px;font-size:1.3rem;font-weight:700;color:#2f5670;
+         text-shadow:0 1px 4px rgba(255,255,255,.6)}
+  input{margin-top:14px;width:100%;max-width:330px;padding:15px 18px;border-radius:14px;
+        border:2px solid #cdb86a;font-size:1.05rem;background:rgba(255,255,255,.95);
+        color:#234;text-align:center;box-shadow:0 3px 10px rgba(20,40,70,.12)}
+  input::placeholder{color:#9ab}
+  .start{margin-top:40px;width:100%;max-width:300px;padding:18px;border:none;border-radius:16px;
+         font:800 1.4rem/1 Georgia,serif;color:#3a3014;cursor:pointer;letter-spacing:.5px;
+         background:linear-gradient(180deg,#f3ead0,#e2cf94);
+         box-shadow:0 6px 16px rgba(20,40,70,.22);text-shadow:0 1px 2px rgba(255,255,255,.5)}
   .start:active{transform:scale(.97)}
 </style>
 </head>
 <body>
-  <div class="bg"></div>
-
-  <div class="frame">
-    <div class="w">Wellcome&nbsp;&nbsp;To</div>
-    <div class="s">SHELL VOICE</div>
-  </div>
+  <img class="logo" src="logo_card.png" alt="Shell Voice">
   <div class="ar">صوت الصدفة</div>
 
-  <div class="enter">enter youre name</div>
+  <div class="enter">enter your name</div>
   <input id="nm" type="text" placeholder="Type here" autocomplete="off">
 
   <button class="start" onclick="go()">get started</button>
